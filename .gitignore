@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Environment files (only .env.example is tracked)
+.env*
+!.env.example
+
+# Uploaded files (tenant photos, lease PDFs)
+uploads/
+
+# Build output
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Tests
+coverage/
+test-results/
+playwright-report/
+
+# Logs and OS / editor files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

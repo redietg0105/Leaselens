@@ -1,0 +1,30 @@
+{
+  "name": "leaselens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LeaseLens — AI maintenance triage and lease abstraction (local MVP)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run build -w @leaselens/shared && concurrently -k -n shared,api,web -c magenta,blue,green \"npm run dev -w @leaselens/shared\" \"npm run dev -w @leaselens/api\" \"npm run dev -w @leaselens/web\"",
+    "build": "npm run build -w @leaselens/shared && npm run build -w @leaselens/api && npm run build -w @leaselens/web",
+    "test": "npm run build -w @leaselens/shared && npm run test -w @leaselens/api",
+    "lint": "npm run lint -w @leaselens/web",
+    "db:migrate": "npm run db:migrate -w @leaselens/api",
+    "db:seed": "npm run db:seed -w @leaselens/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  },
+  "allowScripts": {
+    "prisma@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "@prisma/client@6.19.3": true
+  }
+}

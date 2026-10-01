@@ -1,0 +1,18 @@
+{
+  "name": "@leaselens/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zod schemas and types shared by the LeaseLens web app and API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}

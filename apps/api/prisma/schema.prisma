@@ -1,0 +1,13 @@
+// LeaseLens data model. See docs/SPEC.md section 6.
+// Models are added in the data-model pass; this file only configures the database for now.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
