@@ -69,6 +69,7 @@ LeaseLens is an early-stage PropTech startup. Pilot customer: Capitol Residentia
 - **Auth**: passwordless magic link. In dev the link is printed in the API terminal (SendGrid in production).
   Server issues an httpOnly session cookie; role comes from the database, never from the client.
 - **Notifications**: `notifications` table + console log in dev (Twilio/SendGrid in production).
+- **Local ports**: web 3000, API 4100 (`PORT`). Not 4000: NoMachine uses it on the dev machine.
 - **Testing**: Jest (api), Playwright (web, including 390px phone width).
 
 ## 6. Data model (Prisma)

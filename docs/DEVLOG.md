@@ -26,3 +26,14 @@ Tenant/Staff entry points, `GET /health`, git init + first commit.
 - Known: `npm audit` reports 3 high issues in `deepmerge-ts` via the Prisma CLI (dev-only, no safe fix yet).
 
 **Time spent:** ~1 h
+
+## 2026-10-01 — Session 2: move API to port 4100
+
+**Prompt:** Move the API to port 4100 everywhere so it doesn't clash with NoMachine on 4000; run tests,
+start `npm run dev`, confirm `/health`, commit.
+
+**Built:** API default `PORT` is now 4100. Updated the root, API and web `.env.example` files, README
+(port note), SPEC (new "Local ports" line) and the CLAUDE.md commands. CORS unchanged — it allows the
+web origin (`WEB_URL`, :3000), not the API port.
+
+**Time spent:** ~10 min

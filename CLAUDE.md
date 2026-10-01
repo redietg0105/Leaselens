@@ -28,6 +28,6 @@ Read `docs/SPEC.md` before any task. It is the source of truth for features, dat
 
 ## Commands (update as they are created)
 - `npm install` — install all workspaces
-- `npm run dev` — run web (http://localhost:3000) and api (http://localhost:4000) together
+- `npm run dev` — run web (http://localhost:3000) and api (http://localhost:4100) together
 - `npm run db:migrate` / `npm run db:seed`
 - `npm test`

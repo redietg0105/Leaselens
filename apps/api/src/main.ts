@@ -15,7 +15,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   configureApp(app);
 
-  const port = Number(process.env.PORT ?? 4000);
+  const port = Number(process.env.PORT ?? 4100);
   await app.listen(port);
   Logger.log(`API listening on http://localhost:${port}`, 'Bootstrap');
 }
