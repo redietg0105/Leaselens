@@ -29,5 +29,6 @@ Read `docs/SPEC.md` before any task. It is the source of truth for features, dat
 ## Commands (update as they are created)
 - `npm install` — install all workspaces
 - `npm run dev` — run web (http://localhost:3000) and api (http://localhost:4100) together
-- `npm run db:migrate` / `npm run db:seed`
+- `npm run db:migrate` — Prisma migrate dev (uses DIRECT_URL); `npm run db:seed` — wipe + load fictional sample data
+- `npm run db:studio` — Prisma Studio on http://localhost:5555
 - `npm test`

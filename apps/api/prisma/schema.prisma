@@ -1,5 +1,5 @@
-// LeaseLens data model. See docs/SPEC.md section 6.
-// Models are added in the data-model pass; this file only configures the database for now.
+// LeaseLens data model. Source of truth: docs/SPEC.md section 6.
+// Enums Role, Urgency and Category must match packages/shared (enforced by test/prisma-enums.spec.ts).
 
 generator client {
   provider        = "prisma-client-js"
@@ -8,6 +8,395 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  url        = env("DATABASE_URL")
+  url        = env("DATABASE_URL") // pooled — used by the app
+  directUrl  = env("DIRECT_URL") // direct — used by migrations
   extensions = [vector]
+}
+
+// ───────────── Enums ─────────────
+
+enum Role {
+  TENANT
+  VENDOR
+  COORDINATOR
+  LEASING
+  MANAGER
+}
+
+enum Urgency {
+  EMERGENCY
+  URGENT
+  ROUTINE
+}
+
+enum Category {
+  PLUMBING
+  ELECTRICAL
+  HVAC
+  APPLIANCE
+  PEST
+  STRUCTURAL
+  LOCKS_ACCESS
+  OTHER
+}
+
+enum WorkOrderStatus {
+  SUBMITTED // created, waiting for triage
+  NEEDS_INFO // waiting for tenant follow-up answers
+  TRIAGED // AI triage done, waiting for coordinator / dispatch
+  NEEDS_REVIEW // AI output invalid or low confidence — human must triage
+  DISPATCHED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MediaKind {
+  REQUEST
+  COMPLETION
+}
+
+enum LeaseStatus {
+  UPLOADED
+  PROCESSING
+  NEEDS_REVIEW // extracted, waiting for leasing staff to verify terms
+  VERIFIED
+  FAILED
+}
+
+enum LeaseTermStatus {
+  SUGGESTED // from the AI, not yet checked
+  VERIFIED // human confirmed the AI value
+  EDITED // human changed the AI value
+}
+
+enum AlertKind {
+  RENEWAL_NOTICE
+  LEASE_END
+  RENT_ESCALATION
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  ONCALL
+}
+
+enum EmbeddingEntity {
+  WORK_ORDER
+  LEASE_TERM
+}
+
+// ───────────── Property ─────────────
+
+/// A building.
+model Property {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  createdAt DateTime @default(now())
+
+  units Unit[]
+
+  @@map("properties")
+}
+
+model Unit {
+  id         String @id @default(cuid())
+  buildingId String
+  number     String // e.g. "304"
+  stack      String // vertical line of units sharing pipes/risers, e.g. "04"
+  floor      Int
+  unitType   String // e.g. "1BR" — the only unit detail sent to the AI
+
+  building   Property    @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  users      User[]
+  workOrders WorkOrder[]
+  leases     Lease[]
+
+  @@unique([buildingId, number])
+  @@index([buildingId, stack])
+  @@map("units")
+}
+
+// ───────────── Auth ─────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      Role
+  unitId    String? // tenants only
+  vendorId  String? // vendor users only
+  createdAt DateTime @default(now())
+
+  unit   Unit?   @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  vendor Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  magicLinkTokens    MagicLinkToken[]
+  sessions           Session[]
+  workOrdersCreated  WorkOrder[]      @relation("WorkOrderCreatedBy")
+  triageOverrides    TriageResult[]   @relation("TriageOverriddenBy")
+  dispatchesApproved Dispatch[]       @relation("DispatchApprovedBy")
+  termsVerified      LeaseTerm[]      @relation("LeaseTermVerifiedBy")
+  alertsAcknowledged Alert[]          @relation("AlertAcknowledgedBy")
+  auditLogs          AuditLog[]
+
+  @@map("users")
+}
+
+/// Only a SHA-256 hash of the emailed token is stored.
+model MagicLinkToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("magic_link_tokens")
+}
+
+/// Only a SHA-256 hash of the session cookie value is stored.
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ───────────── Maintenance ─────────────
+
+model Vendor {
+  id               String     @id @default(cuid())
+  name             String
+  trades           Category[]
+  serviceArea      String
+  hourlyRate       Decimal    @db.Decimal(10, 2)
+  firstTimeFixRate Float // 0–1
+  available        Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+
+  users      User[]
+  dispatches Dispatch[]
+
+  @@map("vendors")
+}
+
+model WorkOrder {
+  id          String          @id @default(cuid())
+  unitId      String
+  createdById String
+  description String
+  status      WorkOrderStatus @default(SUBMITTED)
+  urgency     Urgency? // null until triaged
+  category    Category?
+  slaDueAt    DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  unit            Unit             @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  createdBy       User             @relation("WorkOrderCreatedBy", fields: [createdById], references: [id])
+  media           WorkOrderMedia[]
+  followUpAnswers FollowUpAnswer[]
+  triageResults   TriageResult[]
+  dispatches      Dispatch[]
+
+  @@index([status, urgency])
+  @@index([unitId])
+  @@map("work_orders")
+}
+
+model WorkOrderMedia {
+  id          String    @id @default(cuid())
+  workOrderId String
+  path        String // storage key, e.g. uploads/<id>.jpg
+  kind        MediaKind
+  createdAt   DateTime  @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([workOrderId])
+  @@map("work_order_media")
+}
+
+/// Tenant answer to an approved follow-up question (question bank lives in packages/shared).
+model FollowUpAnswer {
+  id          String   @id @default(cuid())
+  workOrderId String
+  questionId  String
+  answer      String
+  createdAt   DateTime @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([workOrderId, questionId])
+  @@map("follow_up_answers")
+}
+
+/// One row per AI triage run. Keeps model, prompt version and raw output for audit.
+model TriageResult {
+  id             String    @id @default(cuid())
+  workOrderId    String
+  rawJson        Json // raw model output, stored even if invalid
+  valid          Boolean // passed Zod validation
+  category       Category?
+  urgency        Urgency?
+  confidence     Float?
+  emergencyRule  String? // id of the emergency rule that matched, if any
+  model          String
+  promptVersion  String
+  overriddenById String?
+  overrideReason String?
+  overriddenAt   DateTime?
+  createdAt      DateTime  @default(now())
+
+  workOrder    WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  overriddenBy User?     @relation("TriageOverriddenBy", fields: [overriddenById], references: [id])
+
+  @@index([workOrderId])
+  @@map("triage_results")
+}
+
+model Dispatch {
+  id             String    @id @default(cuid())
+  workOrderId    String
+  vendorId       String
+  approvedById   String? // null only when autoDispatched
+  autoDispatched Boolean   @default(false)
+  scheduledFor   DateTime?
+  completedAt    DateTime?
+  completionNote String?
+  costUsd        Decimal?  @db.Decimal(10, 2)
+  createdAt      DateTime  @default(now())
+
+  workOrder  WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  vendor     Vendor    @relation(fields: [vendorId], references: [id])
+  approvedBy User?     @relation("DispatchApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([vendorId])
+  @@index([workOrderId])
+  @@map("dispatches")
+}
+
+/// gemini-embedding-001 vectors (768 dims). HNSW cosine index is added in the migration SQL.
+model Embedding {
+  id         String                     @id @default(cuid())
+  entityType EmbeddingEntity
+  entityId   String
+  vector     Unsupported("vector(768)")
+  model      String
+  createdAt  DateTime                   @default(now())
+
+  @@unique([entityType, entityId])
+  @@map("embeddings")
+}
+
+// ───────────── Leases ─────────────
+
+model Lease {
+  id        String      @id @default(cuid())
+  unitId    String
+  status    LeaseStatus @default(UPLOADED)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  unit      Unit            @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  documents LeaseDocument[]
+  terms     LeaseTerm[]
+  alerts    Alert[]
+
+  @@index([unitId])
+  @@map("leases")
+}
+
+model LeaseDocument {
+  id        String   @id @default(cuid())
+  leaseId   String
+  path      String
+  pages     Int
+  createdAt DateTime @default(now())
+
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@map("lease_documents")
+}
+
+/// One extracted field per row. Only VERIFIED / EDITED terms create alerts or answer questions.
+model LeaseTerm {
+  id           String          @id @default(cuid())
+  leaseId      String
+  field        String // e.g. "renewalNoticeDays" (field list in packages/shared)
+  value        Json? // null when not found in the lease
+  page         Int?
+  quote        String?
+  confidence   Float?
+  status       LeaseTermStatus @default(SUGGESTED)
+  aiValue      Json? // original AI value, kept when a human edits
+  verifiedById String?
+  verifiedAt   DateTime?
+
+  lease      Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  verifiedBy User? @relation("LeaseTermVerifiedBy", fields: [verifiedById], references: [id])
+
+  @@unique([leaseId, field])
+  @@map("lease_terms")
+}
+
+model Alert {
+  id               String    @id @default(cuid())
+  leaseId          String
+  kind             AlertKind
+  daysBefore       Int // 90, 60 or 30
+  dueDate          DateTime // the deadline itself
+  sentAt           DateTime?
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  createdAt        DateTime  @default(now())
+
+  lease          Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  acknowledgedBy User? @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id])
+
+  @@unique([leaseId, kind, daysBefore])
+  @@index([dueDate])
+  @@map("alerts")
+}
+
+// ───────────── Messaging & audit ─────────────
+
+model Notification {
+  id        String              @id @default(cuid())
+  channel   NotificationChannel
+  to        String
+  body      String
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  @@map("notifications")
+}
+
+/// Every AI decision and human action. Actor comes from the session, never the client.
+model AuditLog {
+  id       String   @id @default(cuid())
+  actorId  String? // null for system / AI actions
+  action   String // e.g. "triage.ai", "triage.override", "dispatch.approve"
+  entity   String
+  entityId String
+  before   Json?
+  after    Json?
+  at       DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@map("audit_log")
 }

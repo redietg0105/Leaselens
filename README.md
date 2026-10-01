@@ -20,6 +20,8 @@ npm install
 # then create your local env files from the examples (never commit them):
 #   apps/api/.env       <- apps/api/.env.example
 #   apps/web/.env.local <- apps/web/.env.example
+npm run db:migrate   # create tables in Neon (needs DATABASE_URL and DIRECT_URL)
+npm run db:seed      # load fictional sample data (wipes existing data)
 npm run dev
 ```
 
@@ -34,10 +36,16 @@ npm run dev
 | `npm test` | API tests (Jest + supertest) |
 | `npm run build` | Production build of all workspaces |
 | `npm run lint` | Lint the web app |
-| `npm run db:migrate` | Prisma migrate (needs `DATABASE_URL`) |
-| `npm run db:seed` | Seed data (not implemented yet) |
+| `npm run db:migrate` | Apply migrations / create a new one after editing `schema.prisma` (`prisma migrate dev`) |
+| `npm run db:seed` | **Wipe** the database and load fictional sample data (4 buildings, 40 units, 5 users, 8 vendors, 12 work orders) |
+| `npm run db:studio` | Browse the tables in Prisma Studio (http://localhost:5555) |
 
 ## Troubleshooting
+
+- **`db:migrate` asks for a migration name with no schema change** — someone added an index Prisma can't
+  describe (e.g. HNSW on `embeddings.vector`). Prisma 6 sees it as drift. Keep vector indexes out until we
+  add them with a migration plus a documented workaround.
+- **`db:migrate` hangs on "advisory lock"** — a previous `prisma migrate` is still running. Close it and retry.
 
 - **Why the API uses port 4100** — NoMachine (`nxd`) listens on port 4000 by default, and on Windows
   both programs can bind it, so API requests get empty replies. To use another port, set `PORT` and

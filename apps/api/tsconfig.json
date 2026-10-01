@@ -9,7 +9,14 @@
     "emitDecoratorMetadata": true,
     "strictPropertyInitialization": false,
     "isolatedModules": true,
-    "types": ["node", "jest"]
+    "types": [
+      "node",
+      "jest"
+    ]
   },
-  "include": ["src", "test"]
+  "include": [
+    "src",
+    "test",
+    "prisma"
+  ]
 }
