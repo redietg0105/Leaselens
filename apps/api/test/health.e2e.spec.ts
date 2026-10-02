@@ -10,7 +10,7 @@ describe('GET /health', () => {
   });
 
   afterAll(async () => {
-    await t.app.close();
+    await t.close();
   });
 
   it('returns 200 with a valid health payload, without signing in', async () => {

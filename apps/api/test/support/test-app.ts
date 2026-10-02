@@ -1,4 +1,7 @@
 import 'reflect-metadata';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { Controller, Get, type INestApplication, type Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { SESSION_COOKIE } from '@leaselens/shared';
@@ -9,7 +12,8 @@ import { generateToken, hashToken } from '../../src/auth/tokens';
 import { Roles, STAFF } from '../../src/auth/decorators';
 import { configureApp } from '../../src/configure-app';
 import { PrismaService } from '../../src/prisma/prisma.service';
-import { FakePrisma } from './fake-prisma';
+import { LocalStorageService, StorageService } from '../../src/storage/storage.service';
+import { FakePrisma, type FakeUser } from './fake-prisma';
 
 /** Captures sign-in emails instead of printing them. */
 export class FakeMail {
@@ -43,13 +47,19 @@ export interface TestApp {
   app: INestApplication;
   db: FakePrisma;
   mail: FakeMail;
-  /** Creates a session directly and returns the cookie header for it. */
-  signInAs: (role: Role, opts?: { expiresAt?: Date }) => string;
+  /** Temporary folder standing in for uploads/. Deleted by close(). */
+  uploadsDir: string;
+  /** Creates a user + session directly; returns the user and the cookie header. */
+  signIn: (role: Role, opts?: { expiresAt?: Date; unitId?: string | null }) => { user: FakeUser; cookie: string };
+  /** Shorthand for signIn(...).cookie. */
+  signInAs: (role: Role, opts?: { expiresAt?: Date; unitId?: string | null }) => string;
+  close: () => Promise<void>;
 }
 
 export async function createTestApp(extraControllers: Type[] = []): Promise<TestApp> {
   const db = new FakePrisma();
   const mail = new FakeMail();
+  const uploadsDir = mkdtempSync(path.join(tmpdir(), 'leaselens-uploads-'));
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
     controllers: [TestRoutesController, ...extraControllers],
@@ -58,14 +68,16 @@ export async function createTestApp(extraControllers: Type[] = []): Promise<Test
     .useValue(db)
     .overrideProvider(MailService)
     .useValue(mail)
+    .overrideProvider(StorageService)
+    .useValue(new LocalStorageService(uploadsDir))
     .compile();
 
   const app = moduleRef.createNestApplication({ logger: false });
   configureApp(app);
   await app.init();
 
-  const signInAs = (role: Role, opts: { expiresAt?: Date } = {}) => {
-    const user = db.addUser(`${role.toLowerCase()}-${db.users.length}@leaselens.test`, role);
+  const signIn = (role: Role, opts: { expiresAt?: Date; unitId?: string | null } = {}) => {
+    const user = db.addUser(`${role.toLowerCase()}-${db.users.length}@leaselens.test`, role, undefined, opts.unitId ?? null);
     const token = generateToken();
     db.sessions.push({
       id: `sess_direct_${db.sessions.length}`,
@@ -74,10 +86,16 @@ export async function createTestApp(extraControllers: Type[] = []): Promise<Test
       expiresAt: opts.expiresAt ?? new Date(Date.now() + 60 * 60 * 1000),
       createdAt: new Date(),
     });
-    return `${SESSION_COOKIE}=${token}`;
+    return { user, cookie: `${SESSION_COOKIE}=${token}` };
+  };
+  const signInAs: TestApp['signInAs'] = (role, opts) => signIn(role, opts).cookie;
+
+  const close = async () => {
+    await app.close();
+    rmSync(uploadsDir, { recursive: true, force: true });
   };
 
-  return { app, db, mail, signInAs };
+  return { app, db, mail, uploadsDir, signIn, signInAs, close };
 }
 
 /** Wait for background work (request-link issues tokens without blocking the response). */

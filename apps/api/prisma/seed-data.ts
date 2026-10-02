@@ -223,10 +223,8 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     { id: 'seed_dispatch_08', workOrderId: 'seed_wo_08', vendorId: 'seed_vendor_air', approvedById: null, autoDispatched: true, scheduledFor: ago(14), completedAt: ago(13), completionNote: 'Tightened loose fan shroud and replaced one mounting bracket.', costUsd: 180, createdAt: ago(15, -1) },
   ];
 
-  const media: SeedData['media'] = [
-    { id: 'seed_media_02', workOrderId: 'seed_wo_02', path: 'uploads/seed/ceiling-leak.jpg', kind: 'REQUEST' },
-    { id: 'seed_media_08', workOrderId: 'seed_wo_08', path: 'uploads/seed/ac-completed.jpg', kind: 'COMPLETION' },
-  ];
+  // No seed photos: photos are real files in storage, created through the app.
+  const media: SeedData['media'] = [];
 
   const notifications: SeedData['notifications'] = (['02', '05', '06'] as const).map((key) => {
     const wo = workOrders.find((w) => w.id === `seed_wo_${key}`)!;

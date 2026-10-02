@@ -8,7 +8,7 @@ describe('Role guards', () => {
     t = await createTestApp();
   });
   afterAll(async () => {
-    await t.app.close();
+    await t.close();
   });
 
   const http = () => request(t.app.getHttpServer());

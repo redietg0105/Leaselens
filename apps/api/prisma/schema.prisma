@@ -51,6 +51,12 @@ enum WorkOrderStatus {
   CANCELLED
 }
 
+enum EntryPermission {
+  YES // staff/vendor may enter without the tenant home
+  NO // only when the tenant is home
+  CALL_FIRST
+}
+
 enum MediaKind {
   REQUEST
   COMPLETION
@@ -192,16 +198,18 @@ model Vendor {
 }
 
 model WorkOrder {
-  id          String          @id @default(cuid())
-  unitId      String
-  createdById String
-  description String
-  status      WorkOrderStatus @default(SUBMITTED)
-  urgency     Urgency? // null until triaged
-  category    Category?
-  slaDueAt    DateTime?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id              String          @id @default(cuid())
+  unitId          String
+  createdById     String
+  description     String
+  status          WorkOrderStatus @default(SUBMITTED)
+  urgency         Urgency? // null until triaged
+  category        Category?
+  slaDueAt        DateTime?
+  entryPermission EntryPermission @default(CALL_FIRST)
+  accessNotes     String? // e.g. "dog in bedroom", max 500 chars
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   unit            Unit             @relation(fields: [unitId], references: [id], onDelete: Cascade)
   createdBy       User             @relation("WorkOrderCreatedBy", fields: [createdById], references: [id])
@@ -212,14 +220,17 @@ model WorkOrder {
 
   @@index([status, urgency])
   @@index([unitId])
+  @@index([createdById, createdAt])
   @@map("work_orders")
 }
 
 model WorkOrderMedia {
   id          String    @id @default(cuid())
   workOrderId String
-  path        String // storage key, e.g. uploads/<id>.jpg
+  path        String // storage key, e.g. work-orders/<workOrderId>/<uuid>.jpg (never a URL)
   kind        MediaKind
+  contentType String    @default("image/jpeg")
+  sizeBytes   Int       @default(0)
   createdAt   DateTime  @default(now())
 
   workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)

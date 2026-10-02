@@ -5,7 +5,8 @@ import { AllExceptionsFilter } from './all-exceptions.filter';
 
 /** Shared app setup, used by main.ts and by the e2e tests. */
 export function configureApp(app: INestApplication) {
-  app.use(helmet());
+  // same-site (not same-origin) so <img> tags on the web app (:3000) can load photos from the API (:4100).
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'same-site' } }));
   app.use(cookieParser());
   app.enableCors({
     // Only the web app may call the API with cookies.

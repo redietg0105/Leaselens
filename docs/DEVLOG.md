@@ -94,3 +94,42 @@ Tests: tenant blocked from staff endpoint, expired/reused link rejected, unknown
 - Rate limit message was "ThrottlerException: Too Many Requests" → friendlier message.
 
 **Time spent:** ~1 h 30 min
+
+## 2026-10-02 — Session 5: tenant maintenance requests
+
+**Prompt:** Tenant "New request" form (description 10–1000 chars, up to 3 JPG/PNG/WebP photos ≤ 5 MB with
+previews and remove, permission to enter yes/no/call first, optional access notes); storage service writing
+to uploads/ in dev; store only the path; serve photos only to allowed users; shared Zod validation in browser
+and API; check file type by content; unit from the database; status SUBMITTED; no AI yet; "My requests" list
+and detail with empty/loading/error states; tenant isolation; 390px. Tests, browser check, commit.
+Follow-up: auto-rotate photos from EXIF orientation before stripping metadata; approve only sharp if needed.
+
+**Built**
+- Migration `work_order_entry_and_media_meta`: `EntryPermission` enum, `WorkOrder.entryPermission`,
+  `accessNotes`, `WorkOrderMedia.contentType` / `sizeBytes`, index on `(createdById, createdAt)`.
+- Shared: `CreateWorkOrderSchema`, photo limits, `detectImageType()` (magic bytes, runs in browser + Node),
+  response schemas, tenant-facing status labels.
+- API: `POST /work-orders` (multipart, TENANT), `GET /work-orders/mine` (TENANT), `GET /work-orders/:id` and
+  `GET /work-orders/:id/media/:mediaId` (own request for tenants; coordinators/managers any). Another
+  tenant's request is a 404. `StorageService` + `LocalStorageService` (server-generated keys only). Photos:
+  sharp `rotate()` + re-encode (strips EXIF/GPS), 40 MP input cap, long edge ≤ 2560 px. Files removed again
+  if the DB write fails. `workorder.create` audit entry with the actor from the session. Helmet CORP set to
+  `same-site` so the web app can show API photos.
+- Web: `/tenant` "My requests" (empty state, skeleton, error with retry), `/tenant/requests/new`,
+  `/tenant/requests/[id]` (+ loading, not-found). Root error page uses Next 16 `retry()`.
+- Seed: removed the two photo rows that pointed at files that never existed.
+- Tests: 94 total (validation rules, content sniffing, unit from DB, tenant-only access, cross-tenant 404,
+  EXIF stripping + rotation, orphan cleanup). Mutation check: removing the ownership check fails the
+  cross-tenant test. Browser (Edge, 390px, Neon): 22 checks passed.
+
+**Problems and fixes**
+- sharp needed no install script (prebuilt binaries), so nothing to approve.
+- Lint: updating a ref during render → moved into an effect.
+- Ports 3000/4100 were held by the user's own `npm run dev`; used those servers instead of killing them,
+  and issued test sign-in tokens directly in the DB because their API terminal wasn't readable.
+- First browser run had false failures from missing waits (including a fetch of an `undefined` photo URL
+  that returned 200 from Next); added waits and a guard, all checks then passed with real URLs.
+- Test data (2 requests, 4 photo files, a temporary second tenant) removed afterwards; the user's own
+  request created during the session was left in place.
+
+**Time spent:** ~2 h

@@ -1,8 +1,9 @@
 /**
- * In-memory stand-in for the Prisma calls the auth code makes. Only the query shapes used by
- * AuthService are supported — an unexpected shape throws, so tests fail loudly instead of passing wrongly.
+ * In-memory stand-in for the Prisma calls the API makes. Only the query shapes used by
+ * AuthService and WorkOrdersService are supported — an unexpected shape throws, so tests fail
+ * loudly instead of passing wrongly.
  */
-import type { Role } from '@prisma/client';
+import type { EntryPermission, MediaKind, Role, WorkOrderStatus } from '@prisma/client';
 
 export interface FakeUser {
   id: string;
@@ -28,6 +29,38 @@ export interface FakeSession {
   expiresAt: Date;
   createdAt: Date;
 }
+export interface FakeUnit {
+  id: string;
+  number: string;
+  building: { id: string; name: string };
+}
+export interface FakeMedia {
+  id: string;
+  workOrderId: string;
+  path: string;
+  kind: MediaKind;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: Date;
+}
+export interface FakeWorkOrder {
+  id: string;
+  unitId: string;
+  createdById: string;
+  description: string;
+  status: WorkOrderStatus;
+  entryPermission: EntryPermission;
+  accessNotes: string | null;
+  createdAt: Date;
+}
+export interface FakeAudit {
+  id: string;
+  actorId: string | null;
+  action: string;
+  entity: string;
+  entityId: string;
+  after: unknown;
+}
 
 type DateFilter = { gt: Date };
 const isDateFilter = (v: unknown): v is DateFilter => typeof v === 'object' && v !== null && 'gt' in v;
@@ -39,9 +72,21 @@ export class FakePrisma {
   users: FakeUser[] = [];
   tokens: FakeToken[] = [];
   sessions: FakeSession[] = [];
+  units: FakeUnit[] = [];
+  workOrders: FakeWorkOrder[] = [];
+  media: FakeMedia[] = [];
+  auditLogs: FakeAudit[] = [];
+  /** Set to make the next work order insert fail (tests cleanup of saved photos). */
+  failNextWorkOrderCreate = false;
 
-  addUser(email: string, role: Role, name = `Test ${role}`): FakeUser {
-    const user: FakeUser = { id: id('user'), email, name, role, unitId: null, vendorId: null, createdAt: new Date() };
+  addUnit(number: string, buildingName = 'Building A — Juniper Row'): FakeUnit {
+    const unit: FakeUnit = { id: id('unit'), number, building: { id: id('bldg'), name: buildingName } };
+    this.units.push(unit);
+    return unit;
+  }
+
+  addUser(email: string, role: Role, name = `Test ${role}`, unitId: string | null = null): FakeUser {
+    const user: FakeUser = { id: id('user'), email, name, role, unitId, vendorId: null, createdAt: new Date() };
     this.users.push(user);
     return user;
   }
@@ -108,6 +153,62 @@ export class FakePrisma {
       return { count: before - this.sessions.length };
     },
   };
+
+  workOrder = {
+    create: async ({
+      data,
+    }: {
+      data: Omit<FakeWorkOrder, 'id' | 'createdAt'> & {
+        media: { create: Omit<FakeMedia, 'id' | 'workOrderId' | 'createdAt'>[] };
+      };
+    }) => {
+      if (this.failNextWorkOrderCreate) {
+        this.failNextWorkOrderCreate = false;
+        throw new Error('FakePrisma: simulated database failure');
+      }
+      const { media, ...rest } = data;
+      // Strictly increasing timestamps so newest-first ordering is well defined.
+      const latest = Math.max(0, ...this.workOrders.map((w) => w.createdAt.getTime()));
+      const wo: FakeWorkOrder = { id: id('wo'), createdAt: new Date(Math.max(Date.now(), latest + 1)), ...rest };
+      this.workOrders.push(wo);
+      for (const m of media.create) {
+        this.media.push({ id: id('media'), workOrderId: wo.id, createdAt: new Date(), ...m });
+      }
+      return wo;
+    },
+
+    findMany: async ({ where, orderBy }: { where: { createdById: string }; orderBy: { createdAt: 'desc' } }) => {
+      if (orderBy.createdAt !== 'desc') throw new Error('FakePrisma: unsupported orderBy');
+      return this.workOrders
+        .filter((w) => w.createdById === where.createdById)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .map((w) => ({ ...w, media: this.media.filter((m) => m.workOrderId === w.id).map((m) => ({ id: m.id })) }));
+    },
+
+    findUnique: async ({ where }: { where: { id: string } }) => {
+      const w = this.workOrders.find((x) => x.id === where.id);
+      if (!w) return null;
+      const unit = this.units.find((u) => u.id === w.unitId);
+      if (!unit) throw new Error(`FakePrisma: no unit ${w.unitId}`);
+      const media = this.media
+        .filter((m) => m.workOrderId === w.id && m.kind === 'REQUEST')
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      return { ...w, media, unit };
+    },
+  };
+
+  auditLog = {
+    create: async ({ data }: { data: Omit<FakeAudit, 'id'> }) => {
+      const row = { id: id('audit'), ...data };
+      this.auditLogs.push(row);
+      return row;
+    },
+  };
+
+  /** Interactive transactions. The fake has no rollback, so tests check failure cleanup explicitly. */
+  async $transaction<T>(fn: (tx: this) => Promise<T>): Promise<T> {
+    return fn(this);
+  }
 
   async $disconnect() {}
 }

@@ -55,6 +55,14 @@ with `@Roles(...)`; the role is read from the database on every request.
 **Production note:** the web and API services must share a parent domain (e.g. `app.example.com` and
 `api.example.com`) for the cookie to work, and the API must run behind HTTPS (`Secure` cookie).
 
+## Maintenance requests (tenants)
+
+Sign in as `tenant@leaselens.test` → **My requests** → **New request**. Photos (up to 3, JPG/PNG/WebP,
+5 MB each) are checked by their content in the browser and again by the API, turned upright, stripped of
+metadata (GPS, device) and saved under `uploads/work-orders/` (gitignored; override with `UPLOADS_DIR`).
+Only the file key is stored in the database, and the API serves a photo only to the tenant who created the
+request or to coordinators/managers. The unit always comes from the signed-in tenant's database record.
+
 ## Troubleshooting
 
 - **"Too many requests" when signing in** — request-link allows 5 requests per IP per 15 minutes

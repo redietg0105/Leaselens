@@ -1,8 +1,14 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { homePathForRole, MeSchema, SESSION_COOKIE, type Me } from "@leaselens/shared";
-import { API_URL } from "./api";
+import type { z } from "zod";
+import { apiUrl } from "./api";
+
+async function sessionCookieHeader(): Promise<string | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? `${SESSION_COOKIE}=${encodeURIComponent(token)}` : null;
+}
 
 /**
  * Server-side: who is signed in? Asks the API (which checks the session in the database) and
@@ -10,13 +16,10 @@ import { API_URL } from "./api";
  * are not scoped by port. Cached per request.
  */
 export const getCurrentUser = cache(async (): Promise<Me | null> => {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) return null;
+  const cookie = await sessionCookieHeader();
+  if (!cookie) return null;
 
-  const res = await fetch(`${API_URL}/me`, {
-    headers: { cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}` },
-    cache: "no-store",
-  });
+  const res = await fetch(apiUrl("/me"), { headers: { cookie }, cache: "no-store" });
   if (res.status === 401) return null;
   if (!res.ok) throw new Error(`GET /me failed with ${res.status}`);
   return MeSchema.parse(await res.json());
@@ -33,4 +36,26 @@ export async function requireArea(area: "/tenant" | "/staff"): Promise<Me> {
   const home = homePathForRole(user.role);
   if (home !== area) redirect(home);
   return user;
+}
+
+/** Tenant-only pages. Vendors share the /tenant area but go back to its home. */
+export async function requireTenant(): Promise<Me> {
+  const user = await requireArea("/tenant");
+  if (user.role !== "TENANT") redirect("/tenant");
+  return user;
+}
+
+/**
+ * Server-side GET to the API with the user's session, validated with a shared Zod schema.
+ * 401 → /signin, 404 → the nearest not-found page, anything else → the nearest error boundary.
+ */
+export async function apiGet<S extends z.ZodType>(path: string, schema: S): Promise<z.output<S>> {
+  const cookie = await sessionCookieHeader();
+  if (!cookie) redirect("/signin");
+
+  const res = await fetch(apiUrl(path), { headers: { cookie }, cache: "no-store" });
+  if (res.status === 401) redirect("/signin");
+  if (res.status === 404) notFound();
+  if (!res.ok) throw new Error(`GET ${path} failed with ${res.status}`);
+  return schema.parse(await res.json());
 }

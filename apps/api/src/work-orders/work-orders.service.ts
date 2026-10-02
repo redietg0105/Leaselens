@@ -1,0 +1,150 @@
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type {
+  CreateWorkOrder,
+  PhotoType,
+  WorkOrderDetail,
+  WorkOrderSummary,
+} from '@leaselens/shared';
+import type { AuthUser } from '../auth/auth.types';
+import { PrismaService } from '../prisma/prisma.service';
+import { newPhotoKey, StorageService } from '../storage/storage.service';
+import { processPhoto } from './photos';
+
+export const NO_UNIT_MESSAGE =
+  "Your account isn't linked to an apartment yet. Please contact the leasing office.";
+const NOT_FOUND_MESSAGE = 'Request not found.';
+
+/** Staff roles that may open any work order. Vendors get assigned-jobs access in a later feature. */
+const STAFF_READERS = new Set(['COORDINATOR', 'MANAGER']);
+
+export interface UploadedPhoto {
+  buffer: Buffer;
+}
+
+@Injectable()
+export class WorkOrdersService {
+  private readonly logger = new Logger(WorkOrdersService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
+
+  /**
+   * Creates a request for the signed-in tenant. The unit comes from the tenant's database record
+   * (loaded by SessionGuard on this request) — never from the request body.
+   */
+  async create(user: AuthUser, input: CreateWorkOrder, photos: UploadedPhoto[]): Promise<WorkOrderDetail> {
+    if (!user.unitId) throw new BadRequestException(NO_UNIT_MESSAGE);
+
+    // Check and clean every photo before saving anything.
+    const processed = await Promise.all(photos.map((p) => processPhoto(p.buffer)));
+
+    const saved: { key: string; contentType: PhotoType; sizeBytes: number }[] = [];
+    try {
+      for (const photo of processed) {
+        const key = newPhotoKey(photo.contentType);
+        await this.storage.save(key, photo.data);
+        saved.push({ key, contentType: photo.contentType, sizeBytes: photo.data.length });
+      }
+
+      const workOrder = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.workOrder.create({
+          data: {
+            unitId: user.unitId!,
+            createdById: user.id,
+            description: input.description,
+            entryPermission: input.entryPermission,
+            accessNotes: input.accessNotes ?? null,
+            status: 'SUBMITTED',
+            media: {
+              create: saved.map((s) => ({
+                path: s.key,
+                kind: 'REQUEST' as const,
+                contentType: s.contentType,
+                sizeBytes: s.sizeBytes,
+              })),
+            },
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: user.id, // from the session, never from the client
+            action: 'workorder.create',
+            entity: 'WorkOrder',
+            entityId: created.id,
+            after: { status: 'SUBMITTED', unitId: user.unitId, photoCount: saved.length },
+          },
+        });
+        return created;
+      });
+
+      return this.get(user, workOrder.id);
+    } catch (err) {
+      // Don't leave orphan files behind if the database write failed.
+      await Promise.all(saved.map((s) => this.storage.delete(s.key).catch(() => undefined)));
+      throw err;
+    }
+  }
+
+  /** The tenant's own requests, newest first. */
+  async listMine(user: AuthUser): Promise<WorkOrderSummary[]> {
+    const rows = await this.prisma.workOrder.findMany({
+      where: { createdById: user.id },
+      orderBy: { createdAt: 'desc' },
+      include: { media: { select: { id: true } } },
+    });
+    return rows.map((w) => ({
+      id: w.id,
+      description: w.description,
+      status: w.status,
+      createdAt: w.createdAt.toISOString(),
+      photoCount: w.media.length,
+    }));
+  }
+
+  async get(user: AuthUser, id: string): Promise<WorkOrderDetail> {
+    const w = await this.findVisible(user, id);
+    return {
+      id: w.id,
+      description: w.description,
+      status: w.status,
+      createdAt: w.createdAt.toISOString(),
+      photoCount: w.media.length,
+      entryPermission: w.entryPermission,
+      accessNotes: w.accessNotes,
+      unit: { number: w.unit.number, building: w.unit.building.name },
+      photos: w.media.map((m) => ({ id: m.id, url: `/work-orders/${w.id}/media/${m.id}` })),
+    };
+  }
+
+  async readPhoto(user: AuthUser, id: string, mediaId: string) {
+    const w = await this.findVisible(user, id);
+    const media = w.media.find((m) => m.id === mediaId);
+    if (!media) throw new NotFoundException(NOT_FOUND_MESSAGE);
+    try {
+      return { data: await this.storage.read(media.path), contentType: media.contentType };
+    } catch (err) {
+      this.logger.error(`Photo ${media.id} missing from storage: ${err instanceof Error ? err.message : err}`);
+      throw new NotFoundException('Photo not found.');
+    }
+  }
+
+  /**
+   * Loads a work order the user may see, or 404. Another tenant's request looks exactly like
+   * one that doesn't exist, so its existence isn't revealed.
+   */
+  private async findVisible(user: AuthUser, id: string) {
+    const w = await this.prisma.workOrder.findUnique({
+      where: { id },
+      include: {
+        media: { where: { kind: 'REQUEST' }, orderBy: { createdAt: 'asc' } },
+        unit: { include: { building: true } },
+      },
+    });
+    const allowed =
+      !!w && (STAFF_READERS.has(user.role) || (user.role === 'TENANT' && w.createdById === user.id));
+    if (!w || !allowed) throw new NotFoundException(NOT_FOUND_MESSAGE);
+    return w;
+  }
+}

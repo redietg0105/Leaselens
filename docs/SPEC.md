@@ -66,6 +66,9 @@ LeaseLens is an early-stage PropTech startup. Pilot customer: Capitol Residentia
   Model from env `GEMINI_MODEL` (default `gemini-3.8-flash`; fall back to `gemini-3.5-flash-lite` if rate-limited).
   Embeddings: `gemini-embedding-001` with outputDimensionality 768. (Production: Vertex AI + Document AI.)
 - **Files**: local `uploads/` folder in dev behind a storage interface (Cloud Storage in production).
+  Photos are checked by content (JPEG/PNG/WebP, ≤ 5 MB, max 3), turned upright from EXIF orientation and
+  re-encoded to strip metadata (GPS, device). The database stores only the storage key; photos are served
+  by the API only to users allowed to see that work order.
 - **Auth**: passwordless magic link. In dev the link is printed in the API terminal (SendGrid in production).
   The link opens a web page (`/auth/verify`) where the user clicks to confirm, which calls `POST /auth/verify`;
   this stops email link scanners from using up the one-time link.
@@ -93,7 +96,8 @@ Seed: 4 buildings, 40 units, 1 user per role (tenant in Building A), 8 vendors a
 ## 7. Key API endpoints
 
 POST /auth/request-link · POST /auth/verify · POST /auth/logout · GET /me
-POST /uploads · POST /work-orders · GET /work-orders/:id · POST /work-orders/:id/answers
+POST /work-orders (multipart: fields + up to 3 photos) · GET /work-orders/mine · GET /work-orders/:id ·
+GET /work-orders/:id/media/:mediaId · POST /work-orders/:id/answers
 GET /staff/queue · POST /work-orders/:id/override · GET /work-orders/:id/vendors · POST /work-orders/:id/dispatch
 GET /vendor/jobs · POST /vendor/jobs/:id/complete
 POST /leases · GET /leases/:id/terms · POST /leases/:id/terms/:field/verify · POST /leases/ask

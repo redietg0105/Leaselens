@@ -12,7 +12,7 @@ describe('Magic-link authentication', () => {
     t = await createTestApp();
   });
   afterEach(async () => {
-    await t.app.close();
+    await t.close();
   });
 
   const http = () => request(t.app.getHttpServer());

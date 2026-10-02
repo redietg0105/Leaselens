@@ -6,6 +6,8 @@ import { RolesGuard } from './auth/roles.guard';
 import { SessionGuard } from './auth/session.guard';
 import { HealthController } from './health/health.controller';
 import { PrismaModule } from './prisma/prisma.module';
+import { StorageModule } from './storage/storage.module';
+import { WorkOrdersModule } from './work-orders/work-orders.module';
 
 @Module({
   imports: [
@@ -15,7 +17,9 @@ import { PrismaModule } from './prisma/prisma.module';
       errorMessage: 'Too many requests. Please wait a few minutes and try again.',
     }),
     PrismaModule,
+    StorageModule,
     AuthModule,
+    WorkOrdersModule,
   ],
   controllers: [HealthController],
   providers: [
