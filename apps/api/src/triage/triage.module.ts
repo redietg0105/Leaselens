@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { GeminiTriageModel, TriageModel } from './triage-model';
-import { DEFAULT_TRIAGE_TIMEOUT_MS, TRIAGE_TIMEOUT_MS, TriageService } from './triage.service';
+import { TRIAGE_TIMEOUT_MS, TriageService, triageTimeoutFromEnv } from './triage.service';
 
 @Module({
   providers: [
     TriageService,
     { provide: TriageModel, useClass: GeminiTriageModel },
-    { provide: TRIAGE_TIMEOUT_MS, useValue: DEFAULT_TRIAGE_TIMEOUT_MS },
+    // Read when the app starts (after .env is loaded), not when this file is imported.
+    { provide: TRIAGE_TIMEOUT_MS, useFactory: () => triageTimeoutFromEnv() },
   ],
   exports: [TriageService],
 })

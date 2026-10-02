@@ -80,7 +80,7 @@ export async function createTestApp(
     .overrideProvider(TriageModel)
     .useValue(model)
     .overrideProvider(TRIAGE_TIMEOUT_MS)
-    .useValue(opts.triageTimeoutMs ?? 15_000)
+    .useValue(opts.triageTimeoutMs ?? 25_000)
     .overrideProvider(StorageService)
     .useValue(new LocalStorageService(uploadsDir))
     .compile();

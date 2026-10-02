@@ -184,7 +184,7 @@ describe('AI triage', () => {
       expect((t.db.triageResults[0].rawJson as { error: string }).error).toContain('503');
     });
 
-    it('a timeout → NEEDS_REVIEW (timeout shortened for the test; 15 s is covered in triage-units)', async () => {
+    it('a timeout → NEEDS_REVIEW (timeout shortened for the test; the 25 s default is covered in triage-units)', async () => {
       await setup({ triageTimeoutMs: 100 });
       t.model.respond = () => new Promise<string>(() => undefined);
       const res = await submit('Kitchen sink is slow to drain.');

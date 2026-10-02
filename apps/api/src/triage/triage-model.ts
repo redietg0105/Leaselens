@@ -28,8 +28,10 @@ export abstract class TriageModel {
   abstract generate(request: TriageModelRequest): Promise<TriageModelResponse>;
 }
 
-export const DEFAULT_MODEL = 'gemini-3.8-flash';
-export const DEFAULT_FALLBACK_MODEL = 'gemini-3.5-flash-lite';
+// Development defaults: gemini-3.8-flash was rate-limited/overloaded or timed out in 4 of 5 calls on
+// 2026-10-02, so the lighter model is primary. Both are configurable in apps/api/.env.
+export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+export const DEFAULT_FALLBACK_MODEL = 'gemini-3.8-flash';
 
 @Injectable()
 export class GeminiTriageModel extends TriageModel {
@@ -51,9 +53,10 @@ export class GeminiTriageModel extends TriageModel {
     try {
       return await this.call(this.primaryModel, request);
     } catch (err) {
-      // Spec: fall back to the lighter model when rate-limited (429) — or overloaded (503 "high demand").
-      if (err instanceof ApiError && (err.status === 429 || err.status === 503) && !request.signal.aborted) {
-        this.logger.warn(`${this.primaryModel} unavailable (HTTP ${err.status}); retrying with ${this.fallbackModel}`);
+      // Fall back to the other model when rate-limited (429) or overloaded (503 "high demand").
+      const retryable = err instanceof ApiError && (err.status === 429 || err.status === 503);
+      if (retryable && this.fallbackModel !== this.primaryModel && !request.signal.aborted) {
+        this.logger.warn(`${this.primaryModel} unavailable (HTTP ${(err as GenAI.ApiError).status}); retrying with ${this.fallbackModel}`);
         return this.call(this.fallbackModel, request);
       }
       throw err;

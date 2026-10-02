@@ -63,8 +63,9 @@ LeaseLens is an early-stage PropTech startup. Pilot customer: Capitol Residentia
 - **Backend**: NestJS (TypeScript), Prisma ORM, Zod (schemas shared from `packages/shared`).
 - **Database**: Neon serverless PostgreSQL with the `vector` extension (pgvector).
 - **AI**: Gemini API via `@google/genai` with `GEMINI_API_KEY` from Google AI Studio.
-  Model from env `GEMINI_MODEL` (default `gemini-3.8-flash`; fall back to `gemini-3.5-flash-lite` if rate-limited
-  (429) or overloaded (503)). Triage: prompt version `triage-v1`, 15 s timeout, runs in the background after
+  Model from env `GEMINI_MODEL` with fallback `GEMINI_FALLBACK_MODEL` if rate-limited (429) or overloaded (503).
+  Development defaults: `gemini-3.5-flash-lite` first, `gemini-3.8-flash` as fallback (3.8-flash was often
+  overloaded in testing). Triage: prompt version `triage-v1`, timeout `TRIAGE_TIMEOUT_MS` (default 25 s), runs in the background after
   submit; tenant text is sent between random-id BEGIN/END markers and treated as data only (prompt-injection
   guard); descriptions are scrubbed of phone numbers, emails and the tenant name; follow-up answers are
   multiple choice from the approved bank. "No heat" is an emergency during the DC heating season

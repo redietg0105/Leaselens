@@ -176,3 +176,28 @@ returned 429 → fell back to `gemini-3.5-flash-lite`, 4.5 s, valid JSON: PLUMBI
 - Browser check used temporary DB-created requests (no AI) so no extra real calls were made; removed after.
 
 **Time spent:** ~2 h 30 min
+
+## 2026-10-02 — Session 7: swap triage models, 25 s timeout
+
+**Prompt:** gemini-3.8-flash failed 4 of 5 times today. For development, make gemini-3.5-flash-lite the
+primary and gemini-3.8-flash the fallback, both configurable in .env; raise the triage timeout to 25 s and make
+it configurable; update .env.example and README; run tests; re-run triage on my two requests; commit.
+
+**Built**
+- Defaults: `GEMINI_MODEL` = gemini-3.5-flash-lite, `GEMINI_FALLBACK_MODEL` = gemini-3.8-flash; no retry when
+  both are the same model. `TRIAGE_TIMEOUT_MS` (1000–120000, default 25000), read when the app starts.
+- Updated both `.env.example` files, README (settings table), SPEC §5 and the model/timeout lines in the
+  user's own `apps/api/.env` (other lines untouched).
+- Tests: 170 passing (new: env settings, defaults, same-model guard, 25 s timeout with fake timers).
+
+**Real calls** (`npm run triage:once -- <id> --rerun`, both answered by gemini-3.5-flash-lite):
+- "water is leaking under my kitchen sink." (1 photo) → 1.8 s, PLUMBING / URGENT / 0.95, "Kitchen sink leak",
+  follow-up `water_active` → NEEDS_INFO.
+- "i smell gas in the kitchen" → 5.3 s, APPLIANCE / EMERGENCY / 0.99, "Gas smell in kitchen"; rule `gas-smell`
+  also matched; AI asked `appliance_type` but emergencies skip questions → TRIAGED; still 1 on-call alert.
+
+**Problems and fixes**
+- Fallback tests failed because importing `@prisma/client` loads `apps/api/.env`, so tests saw the
+  developer's real `GEMINI_MODEL`. The model tests now clear those variables around each test.
+
+**Time spent:** ~30 min

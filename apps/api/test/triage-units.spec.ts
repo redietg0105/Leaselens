@@ -10,9 +10,21 @@ import {
 } from '../src/triage/emergency-rules';
 import { buildTriageParts, PROMPT_VERSION, SYSTEM_INSTRUCTION, TRIAGE_JSON_SCHEMA } from '../src/triage/prompt';
 import { redactPersonalDetails } from '../src/triage/redact';
-import { GeminiTriageModel } from '../src/triage/triage-model';
-import { maxUrgency } from '../src/triage/triage.service';
+import { DEFAULT_FALLBACK_MODEL, DEFAULT_MODEL, GeminiTriageModel } from '../src/triage/triage-model';
+import { DEFAULT_TRIAGE_TIMEOUT_MS, maxUrgency, triageTimeoutFromEnv } from '../src/triage/triage.service';
 import { TimeoutError, withTimeout } from '../src/triage/with-timeout';
+
+// Importing @prisma/client loads apps/api/.env into process.env. Model tests must not depend on a
+// developer's local settings, so the model variables are cleared around every test.
+const savedEnv = { model: process.env.GEMINI_MODEL, fallback: process.env.GEMINI_FALLBACK_MODEL };
+beforeEach(() => {
+  delete process.env.GEMINI_MODEL;
+  delete process.env.GEMINI_FALLBACK_MODEL;
+});
+afterAll(() => {
+  if (savedEnv.model !== undefined) process.env.GEMINI_MODEL = savedEnv.model;
+  if (savedEnv.fallback !== undefined) process.env.GEMINI_FALLBACK_MODEL = savedEnv.fallback;
+});
 
 // 2026-01-15 noon in DC — inside the heating season; 2026-07-15 — outside.
 const WINTER = new Date('2026-01-15T17:00:00Z');
@@ -152,17 +164,18 @@ describe('prompt', () => {
 describe('withTimeout', () => {
   afterEach(() => jest.useRealTimers());
 
-  it('gives up after exactly 15 seconds and aborts the request', async () => {
+  it('gives up after exactly 25 seconds (the default) and aborts the request', async () => {
     jest.useFakeTimers();
     let signal: AbortSignal | undefined;
-    const p = withTimeout(15_000, (s) => {
+    expect(DEFAULT_TRIAGE_TIMEOUT_MS).toBe(25_000);
+    const p = withTimeout(DEFAULT_TRIAGE_TIMEOUT_MS, (s) => {
       signal = s;
       return new Promise<string>(() => undefined); // never answers
     });
     const settled = jest.fn();
     p.catch(settled);
 
-    await jest.advanceTimersByTimeAsync(14_999);
+    await jest.advanceTimersByTimeAsync(24_999);
     expect(settled).not.toHaveBeenCalled();
     expect(signal!.aborted).toBe(false);
 
@@ -176,11 +189,69 @@ describe('withTimeout', () => {
   });
 });
 
+describe('triage timeout setting', () => {
+  it('reads TRIAGE_TIMEOUT_MS and falls back to 25 s for missing or unreasonable values', () => {
+    expect(triageTimeoutFromEnv({ TRIAGE_TIMEOUT_MS: '30000' })).toBe(30_000);
+    expect(triageTimeoutFromEnv({})).toBe(25_000);
+    expect(triageTimeoutFromEnv({ TRIAGE_TIMEOUT_MS: 'soon' })).toBe(25_000);
+    expect(triageTimeoutFromEnv({ TRIAGE_TIMEOUT_MS: '50' })).toBe(25_000); // too short
+    expect(triageTimeoutFromEnv({ TRIAGE_TIMEOUT_MS: '600000' })).toBe(25_000); // too long
+  });
+});
+
 describe('GeminiTriageModel', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { ApiError: GenAIError } = require('@google/genai');
+
+  it('uses gemini-3.5-flash-lite first and gemini-3.8-flash as fallback by default (development)', () => {
+    expect(DEFAULT_MODEL).toBe('gemini-3.5-flash-lite');
+    expect(DEFAULT_FALLBACK_MODEL).toBe('gemini-3.8-flash');
+    expect(new GeminiTriageModel().primaryModel).toBe('gemini-3.5-flash-lite');
+  });
+
+  it('takes both models from the environment', async () => {
+    process.env.GEMINI_MODEL = 'model-a';
+    process.env.GEMINI_FALLBACK_MODEL = 'model-b';
+    const model = new GeminiTriageModel();
+    const calls: string[] = [];
+    (model as unknown as { client: unknown }).client = {
+      models: {
+        generateContent: async ({ model: m }: { model: string }) => {
+          calls.push(m);
+          if (calls.length === 1) throw new GenAIError({ message: 'busy', status: 429 });
+          return { text: '{}', modelVersion: m };
+        },
+      },
+    };
+    await model.generate({ systemInstruction: 'x', parts: [], responseJsonSchema: {}, signal: new AbortController().signal });
+    expect(calls).toEqual(['model-a', 'model-b']);
+  });
+
+  it('does not retry the same model when primary and fallback are equal', async () => {
+    process.env.GEMINI_MODEL = 'same';
+    process.env.GEMINI_FALLBACK_MODEL = 'same';
+    const model = new GeminiTriageModel();
+    let calls = 0;
+    (model as unknown as { client: unknown }).client = {
+      models: {
+        generateContent: async () => {
+          calls++;
+          throw new GenAIError({ message: 'busy', status: 429 });
+        },
+      },
+    };
+    await expect(
+      model.generate({ systemInstruction: 'x', parts: [], responseJsonSchema: {}, signal: new AbortController().signal }),
+    ).rejects.toThrow('busy');
+    expect(calls).toBe(1);
+  });
+});
+
+describe('GeminiTriageModel fallback', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { ApiError } = require('@google/genai');
 
-  it('falls back to the lighter model when rate-limited (429)', async () => {
+  it('falls back to the other model when rate-limited (429)', async () => {
     const model = new GeminiTriageModel();
     const calls: string[] = [];
     (model as unknown as { client: unknown }).client = {
@@ -198,8 +269,8 @@ describe('GeminiTriageModel', () => {
       responseJsonSchema: {},
       signal: new AbortController().signal,
     });
-    expect(calls).toEqual([model.primaryModel, 'gemini-3.5-flash-lite']);
-    expect(res).toEqual({ text: '{"ok":true}', model: 'gemini-3.5-flash-lite' });
+    expect(calls).toEqual([model.primaryModel, DEFAULT_FALLBACK_MODEL]);
+    expect(res).toEqual({ text: '{"ok":true}', model: DEFAULT_FALLBACK_MODEL });
   });
 
   it('also falls back when the model is overloaded (503)', async () => {
@@ -215,7 +286,7 @@ describe('GeminiTriageModel', () => {
       },
     };
     await model.generate({ systemInstruction: 'x', parts: [], responseJsonSchema: {}, signal: new AbortController().signal });
-    expect(calls).toEqual([model.primaryModel, 'gemini-3.5-flash-lite']);
+    expect(calls).toEqual([model.primaryModel, DEFAULT_FALLBACK_MODEL]);
   });
 
   it('does not retry other errors', async () => {

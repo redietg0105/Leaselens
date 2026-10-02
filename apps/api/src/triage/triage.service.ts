@@ -18,7 +18,13 @@ import { TriageModel } from './triage-model';
 import { TimeoutError, withTimeout } from './with-timeout';
 
 export const TRIAGE_TIMEOUT_MS = Symbol('TRIAGE_TIMEOUT_MS');
-export const DEFAULT_TRIAGE_TIMEOUT_MS = 15_000;
+export const DEFAULT_TRIAGE_TIMEOUT_MS = 25_000;
+
+/** TRIAGE_TIMEOUT_MS from the environment (1–120 s), else 25 s. */
+export function triageTimeoutFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const ms = Number(env.TRIAGE_TIMEOUT_MS);
+  return Number.isInteger(ms) && ms >= 1_000 && ms <= 120_000 ? ms : DEFAULT_TRIAGE_TIMEOUT_MS;
+}
 
 const RANK: Record<Urgency, number> = { ROUTINE: 1, URGENT: 2, EMERGENCY: 3 };
 

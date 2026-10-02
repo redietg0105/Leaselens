@@ -73,10 +73,21 @@ After a tenant submits, the API answers right away ("Received") and triages in t
 2. **Gemini** gets only the scrubbed description, the cleaned photos, the unit type and any multiple-choice
    answers — never names, emails, phone numbers, access notes, unit number or building. Tenant text sits
    between random-id BEGIN/END markers and the model is told it is data, never instructions.
-3. The JSON reply is checked with the shared Zod schema. Invalid, an error, or no answer within 15 s →
+3. The JSON reply is checked with the shared Zod schema. Invalid, an error, or no answer within 25 s →
    `NEEDS_REVIEW`. Rules run again on the AI's text; the AI can raise urgency but never lower an emergency.
 4. Missing info → up to 2 approved questions on the tenant's request page; answers re-run triage once.
 5. Every run is saved in `triage_results` and `audit_log` (raw output, model, prompt version).
+
+**Settings** (`apps/api/.env`):
+
+| Variable | Development default | What it does |
+|---|---|---|
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Model tried first |
+| `GEMINI_FALLBACK_MODEL` | `gemini-3.8-flash` | Used when the first model is rate-limited (429) or overloaded (503) |
+| `TRIAGE_TIMEOUT_MS` | `25000` | Wait this long for the AI before marking the request `NEEDS_REVIEW` (1000–120000) |
+
+The lighter model is first in development because `gemini-3.8-flash` was rate-limited, overloaded or timed
+out in 4 of 5 calls on 2026-10-02. Swap them in `.env` if that changes.
 
 **Your dev server calls Gemini for real** whenever a tenant submits or answers, and at startup for requests
 that have been waiting more than a minute (set `TRIAGE_SWEEP="off"` to disable that). To triage one request
