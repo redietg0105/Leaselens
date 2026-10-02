@@ -201,3 +201,28 @@ it configurable; update .env.example and README; run tests; re-run triage on my 
   developer's real `GEMINI_MODEL`. The model tests now clear those variables around each test.
 
 **Time spent:** ~30 min
+
+## 2026-10-02 — Session 8: dev overlay "1 Issue" on tenant request pages
+
+**Prompt:** The Next.js dev overlay shows "1 Issue" on the tenant request pages. Find the cause, fix it, run
+the tests, check the page has no issues, commit. (The overlay text itself wasn't included in the message.)
+
+**Cause:** `.next/dev/logs/next-development.log` showed 5 × `⨯ TypeError: fetch failed` from the web server
+12 s after `npm run dev` restarted. The web app is ready in ~2 s but the API needs ~14 s to compile and start.
+An open tenant request page re-rendered in that gap; its server-side calls to the API (`/me`, the request)
+threw an unhandled network error, which the dev overlay reports as an issue.
+
+**Fix**
+- `lib/session.ts`: API calls from the server go through `apiFetch()`. If the API can't be reached, redirect
+  to `/unavailable?next=<current page>` instead of throwing. `proxy.ts` passes the current path in a header.
+- `/unavailable`: "Reconnecting to LeaseLens…" page that checks `/health` every 3 s (about 2 min), then returns
+  to the page; manual "Try again now"; 911 reminder; works at 390px.
+- `safeReturnPath()` in shared: only same-site paths, so `next=` can't be used as an open redirect.
+
+**Checks:** 183 tests passing (new: safeReturnPath). Browser on the user's running dev server: all tenant
+pages and states (list, new, detail, NEEDS_INFO, auto-refresh, client navigation) show no overlay issues and
+no console errors; the dev log has no new errors. API-down simulation (production build on :3001 pointed at
+an unused port, then a stub API brought up): 8/8 checks — redirect to /unavailable, reconnect and return,
+`next=//evil.example` stays on site, no JS errors.
+
+**Time spent:** ~45 min

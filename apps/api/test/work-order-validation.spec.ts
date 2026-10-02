@@ -88,3 +88,25 @@ describe('photoProblem', () => {
     expect(photoProblem(100, textPretendingToBeJpeg())).toBe(PHOTO_ERRORS.badType);
   });
 });
+
+describe('safeReturnPath (where /unavailable sends the user back to)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { safeReturnPath } = require('@leaselens/shared') as typeof import('@leaselens/shared');
+  it.each(['/tenant', '/tenant/requests/abc?created=1', '/staff'])('keeps same-site path %s', (p) => {
+    expect(safeReturnPath(p)).toBe(p);
+  });
+  it.each([
+    'https://evil.example',
+    '//evil.example',
+    '/\\evil.example',
+    'javascript:alert(1)',
+    'tenant',
+    '',
+    '/tenant\nSet-Cookie: x',
+    undefined,
+    ['/tenant'],
+    '/' + 'a'.repeat(600),
+  ])('rejects %p', (p) => {
+    expect(safeReturnPath(p, '/')).toBe('/');
+  });
+});
