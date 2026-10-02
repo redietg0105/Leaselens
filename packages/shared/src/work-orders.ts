@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { EntryPermissionSchema, WorkOrderStatusSchema, type WorkOrderStatus } from './enums';
+import { CategorySchema, EntryPermissionSchema, UrgencySchema, WorkOrderStatusSchema, type WorkOrderStatus } from './enums';
+import { EmergencyRuleIdSchema } from './triage';
 
 // ───────────── Photo rules (browser and API) ─────────────
 
@@ -77,6 +78,21 @@ export const WorkOrderDetailSchema = WorkOrderSummarySchema.extend({
   unit: z.object({ number: z.string(), building: z.string() }),
   /** Photo URLs are API paths, e.g. /work-orders/<id>/media/<mediaId>. Access is checked on each request. */
   photos: z.array(z.object({ id: z.string(), url: z.string() })),
+  /** Set as soon as an emergency rule matches — before the AI runs. */
+  emergencyRule: EmergencyRuleIdSchema.nullable(),
+  urgency: UrgencySchema.nullable(),
+  category: CategorySchema.nullable(),
+  /** Short AI description of the issue, e.g. "Leak under bathroom sink". */
+  subIssue: z.string().nullable(),
+  /** Questions waiting for the tenant (status NEEDS_INFO), from the approved bank. */
+  followUpQuestions: z.array(
+    z.object({
+      id: z.string(),
+      text: z.string(),
+      options: z.array(z.object({ value: z.string(), label: z.string() })),
+    }),
+  ),
+  answers: z.array(z.object({ questionId: z.string(), question: z.string(), answer: z.string() })),
 });
 export type WorkOrderDetail = z.infer<typeof WorkOrderDetailSchema>;
 

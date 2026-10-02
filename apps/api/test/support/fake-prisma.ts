@@ -3,7 +3,7 @@
  * AuthService and WorkOrdersService are supported — an unexpected shape throws, so tests fail
  * loudly instead of passing wrongly.
  */
-import type { EntryPermission, MediaKind, Role, WorkOrderStatus } from '@prisma/client';
+import type { Category, EntryPermission, MediaKind, Role, Urgency, WorkOrderStatus } from '@prisma/client';
 
 export interface FakeUser {
   id: string;
@@ -32,6 +32,7 @@ export interface FakeSession {
 export interface FakeUnit {
   id: string;
   number: string;
+  unitType: string;
   building: { id: string; name: string };
 }
 export interface FakeMedia {
@@ -51,7 +52,12 @@ export interface FakeWorkOrder {
   status: WorkOrderStatus;
   entryPermission: EntryPermission;
   accessNotes: string | null;
+  urgency: Urgency | null;
+  category: Category | null;
+  emergencyRule: string | null;
+  slaDueAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
 }
 export interface FakeAudit {
   id: string;
@@ -59,7 +65,37 @@ export interface FakeAudit {
   action: string;
   entity: string;
   entityId: string;
+  before?: unknown;
   after: unknown;
+}
+export interface FakeTriageResult {
+  id: string;
+  workOrderId: string;
+  rawJson: unknown;
+  valid: boolean;
+  category: Category | null;
+  urgency: Urgency | null;
+  confidence: number | null;
+  subIssue: string | null;
+  followUpQuestionIds: string[];
+  emergencyRule: string | null;
+  model: string;
+  promptVersion: string;
+  createdAt: Date;
+}
+export interface FakeNotification {
+  id: string;
+  channel: string;
+  to: string;
+  body: string;
+  sentAt: Date | null;
+}
+export interface FakeAnswer {
+  id: string;
+  workOrderId: string;
+  questionId: string;
+  answer: string;
+  createdAt: Date;
 }
 
 type DateFilter = { gt: Date };
@@ -79,8 +115,12 @@ export class FakePrisma {
   /** Set to make the next work order insert fail (tests cleanup of saved photos). */
   failNextWorkOrderCreate = false;
 
-  addUnit(number: string, buildingName = 'Building A — Juniper Row'): FakeUnit {
-    const unit: FakeUnit = { id: id('unit'), number, building: { id: id('bldg'), name: buildingName } };
+  triageResults: FakeTriageResult[] = [];
+  notifications: FakeNotification[] = [];
+  answers: FakeAnswer[] = [];
+
+  addUnit(number: string, buildingName = 'Building A — Juniper Row', unitType = '2BR'): FakeUnit {
+    const unit: FakeUnit = { id: id('unit'), number, unitType, building: { id: id('bldg'), name: buildingName } };
     this.units.push(unit);
     return unit;
   }
@@ -158,7 +198,7 @@ export class FakePrisma {
     create: async ({
       data,
     }: {
-      data: Omit<FakeWorkOrder, 'id' | 'createdAt'> & {
+      data: Omit<FakeWorkOrder, 'id' | 'createdAt' | 'updatedAt' | 'category'> & {
         media: { create: Omit<FakeMedia, 'id' | 'workOrderId' | 'createdAt'>[] };
       };
     }) => {
@@ -169,7 +209,17 @@ export class FakePrisma {
       const { media, ...rest } = data;
       // Strictly increasing timestamps so newest-first ordering is well defined.
       const latest = Math.max(0, ...this.workOrders.map((w) => w.createdAt.getTime()));
-      const wo: FakeWorkOrder = { id: id('wo'), createdAt: new Date(Math.max(Date.now(), latest + 1)), ...rest };
+      const createdAt = new Date(Math.max(Date.now(), latest + 1));
+      const wo: FakeWorkOrder = {
+        id: id('wo'),
+        category: null,
+        createdAt,
+        updatedAt: createdAt,
+        ...rest,
+        urgency: rest.urgency ?? null,
+        emergencyRule: rest.emergencyRule ?? null,
+        slaDueAt: rest.slaDueAt ?? null,
+      };
       this.workOrders.push(wo);
       for (const m of media.create) {
         this.media.push({ id: id('media'), workOrderId: wo.id, createdAt: new Date(), ...m });
@@ -185,6 +235,7 @@ export class FakePrisma {
         .map((w) => ({ ...w, media: this.media.filter((m) => m.workOrderId === w.id).map((m) => ({ id: m.id })) }));
     },
 
+    /** Returns every relation the services include (media, unit, latest triage, answers, creator name). */
     findUnique: async ({ where }: { where: { id: string } }) => {
       const w = this.workOrders.find((x) => x.id === where.id);
       if (!w) return null;
@@ -193,7 +244,49 @@ export class FakePrisma {
       const media = this.media
         .filter((m) => m.workOrderId === w.id && m.kind === 'REQUEST')
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-      return { ...w, media, unit };
+      const triageResults = this.triageResults
+        .filter((t) => t.workOrderId === w.id)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, 1);
+      const followUpAnswers = this.answers.filter((a) => a.workOrderId === w.id);
+      const createdBy = { name: this.userById(w.createdById).name };
+      return { ...w, media, unit, triageResults, followUpAnswers, createdBy };
+    },
+
+    update: async ({ where, data }: { where: { id: string }; data: Partial<FakeWorkOrder> }) => {
+      const w = this.workOrders.find((x) => x.id === where.id);
+      if (!w) throw new Error(`FakePrisma: no work order ${where.id}`);
+      Object.assign(w, data, { updatedAt: new Date() });
+      return w;
+    },
+  };
+
+  triageResult = {
+    create: async ({ data }: { data: Omit<FakeTriageResult, 'id' | 'createdAt'> }) => {
+      // Strictly increasing timestamps so "latest" is well defined.
+      const latest = Math.max(0, ...this.triageResults.map((t) => t.createdAt.getTime()));
+      const row: FakeTriageResult = { id: id('triage'), createdAt: new Date(Math.max(Date.now(), latest + 1)), ...data };
+      this.triageResults.push(row);
+      return row;
+    },
+  };
+
+  notification = {
+    create: async ({ data }: { data: Omit<FakeNotification, 'id'> }) => {
+      const row = { id: id('notify'), ...data };
+      this.notifications.push(row);
+      return row;
+    },
+  };
+
+  followUpAnswer = {
+    create: async ({ data }: { data: Omit<FakeAnswer, 'id' | 'createdAt'> }) => {
+      if (this.answers.some((a) => a.workOrderId === data.workOrderId && a.questionId === data.questionId)) {
+        throw new Error('FakePrisma: unique constraint (workOrderId, questionId)');
+      }
+      const row = { id: id('answer'), createdAt: new Date(), ...data };
+      this.answers.push(row);
+      return row;
     },
   };
 

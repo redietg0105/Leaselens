@@ -133,3 +133,46 @@ Follow-up: auto-rotate photos from EXIF orientation before stripping metadata; a
   request created during the session was left in place.
 
 **Time spent:** ~2 h
+
+## 2026-10-02 — Session 6: AI triage with Gemini
+
+**Prompt:** Integrate Gemini (`@google/genai`, model from `GEMINI_MODEL`) for maintenance triage per SPEC §3.1–3.2
+and §4: emergency rules before and after the AI (AI can raise, never lower an emergency); send only description,
+cleaned photos and unit type; structured JSON validated with a shared Zod schema, invalid/failed/>15 s →
+NEEDS_REVIEW; run after submit without making the tenant wait; save raw output, model and prompt version;
+up to two follow-up questions from an approved bank, save answers and re-run; emergency instructions + on-call
+notification; plain-word category/urgency for tenants. Tests with Gemini mocked; one real call on the seeded
+leak request. Follow-up: guard against prompt injection (delimiters, data-only instruction, test).
+Decisions: "no heat" emergency only in the DC heating season (Oct 1 – May 1, configurable); no hard-coded
+utility phone numbers; follow-up answers multiple choice only; scrub phone/email/name from descriptions.
+
+**Built**
+- Migrations: `WorkOrder.emergencyRule`; `TriageResult.subIssue` + `followUpQuestionIds`.
+- Shared: `TriageOutputSchema`, approved question bank (14 multiple-choice questions), `SubmitAnswersSchema`,
+  plain-word labels, SLA hours, emergency instructions per rule.
+- API `triage/`: emergency rules (7, each text checked separately), heating season, redaction, prompt
+  (`triage-v1`, random-id BEGIN/END markers, marker spoofing neutralised, data-only system rules),
+  `GeminiTriageModel` (JSON schema output, abort signal, fallback on 429/503), `withTimeout` (15 s),
+  `TriageService` (background run, rules → AI → validate → rules again → max urgency, NEEDS_INFO / TRIAGED /
+  NEEDS_REVIEW, TriageResult + audit + on-call notification, startup sweep for stuck requests).
+- Submit runs the rules instantly (EMERGENCY + notification in the response); `POST /work-orders/:id/answers`.
+- Web: emergency alert with steps and Call 911, "Our first look" (category + urgency in plain words),
+  follow-up question form, auto-refresh while reviewing, "a coordinator will review it" for NEEDS_REVIEW.
+- `npm run triage:once` (compiles to `build/`, so a running dev server isn't disturbed).
+- Tests: 166 total. Mutation checks: letting the AI urgency win fails 4 tests; skipping redaction fails the
+  privacy test.
+
+**Real call** (`seed_wo_04`, "Small puddle under the bathroom sink every morning.", 2BR): `gemini-3.8-flash`
+returned 429 → fell back to `gemini-3.5-flash-lite`, 4.5 s, valid JSON: PLUMBING / ROUTINE / 0.95,
+"Bathroom sink leak", follow-ups `water_source` + `water_active` → NEEDS_INFO.
+
+**Problems and fixes**
+- `@google/genai` types are ESM-only (TS1479) though it ships CommonJS → ESM type import + `require`.
+- Ceiling rule missed "through the bathroom ceiling" (the seeded emergency's wording) → allow 2 words between.
+- Rules matched across joined texts ("ceiling" + "drips" from the AI summary) → check each text separately.
+- The user's own `npm run dev` hot-reloaded the new code; its startup sweep made 4 real Gemini calls
+  (the user's own request: 503 high demand; seed_wo_04, seed_wo_12 and a new user request: 15 s timeouts) →
+  all NEEDS_REVIEW as designed. Added 503 to the fallback. seed_wo_04 was reset for the requested real call.
+- Browser check used temporary DB-created requests (no AI) so no extra real calls were made; removed after.
+
+**Time spent:** ~2 h 30 min

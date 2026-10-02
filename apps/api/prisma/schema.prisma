@@ -208,6 +208,7 @@ model WorkOrder {
   slaDueAt        DateTime?
   entryPermission EntryPermission @default(CALL_FIRST)
   accessNotes     String? // e.g. "dog in bedroom", max 500 chars
+  emergencyRule   String? // id of the emergency rule that matched (set before and after AI triage)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -255,20 +256,22 @@ model FollowUpAnswer {
 
 /// One row per AI triage run. Keeps model, prompt version and raw output for audit.
 model TriageResult {
-  id             String    @id @default(cuid())
-  workOrderId    String
-  rawJson        Json // raw model output, stored even if invalid
-  valid          Boolean // passed Zod validation
-  category       Category?
-  urgency        Urgency?
-  confidence     Float?
-  emergencyRule  String? // id of the emergency rule that matched, if any
-  model          String
-  promptVersion  String
-  overriddenById String?
-  overrideReason String?
-  overriddenAt   DateTime?
-  createdAt      DateTime  @default(now())
+  id                  String    @id @default(cuid())
+  workOrderId         String
+  rawJson             Json // { raw: exact model text, error } — stored even if invalid
+  valid               Boolean // passed Zod validation
+  category            Category?
+  urgency             Urgency?
+  confidence          Float?
+  subIssue            String? // short AI description, e.g. "Leak under bathroom sink"
+  followUpQuestionIds String[]  @default([]) // ids from the approved question bank
+  emergencyRule       String? // id of the emergency rule that matched, if any
+  model               String
+  promptVersion       String
+  overriddenById      String?
+  overrideReason      String?
+  overriddenAt        DateTime?
+  createdAt           DateTime  @default(now())
 
   workOrder    WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   overriddenBy User?     @relation("TriageOverriddenBy", fields: [overriddenById], references: [id])

@@ -31,4 +31,5 @@ Read `docs/SPEC.md` before any task. It is the source of truth for features, dat
 - `npm run dev` — run web (http://localhost:3000) and api (http://localhost:4100) together
 - `npm run db:migrate` — Prisma migrate dev (uses DIRECT_URL); `npm run db:seed` — wipe + load fictional sample data
 - `npm run db:studio` — Prisma Studio on http://localhost:5555
+- `npm run triage:once -w @leaselens/api -- <workOrderId> [--rerun]` — one REAL Gemini triage call, prints what was sent/received
 - `npm test`

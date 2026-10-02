@@ -13,7 +13,10 @@ import { Roles, STAFF } from '../../src/auth/decorators';
 import { configureApp } from '../../src/configure-app';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { LocalStorageService, StorageService } from '../../src/storage/storage.service';
+import { TriageModel } from '../../src/triage/triage-model';
+import { TRIAGE_TIMEOUT_MS } from '../../src/triage/triage.service';
 import { FakePrisma, type FakeUser } from './fake-prisma';
+import { FakeTriageModel } from './fake-triage-model';
 
 /** Captures sign-in emails instead of printing them. */
 export class FakeMail {
@@ -47,6 +50,8 @@ export interface TestApp {
   app: INestApplication;
   db: FakePrisma;
   mail: FakeMail;
+  /** Fake Gemini: inspect .requests, change .respond. */
+  model: FakeTriageModel;
   /** Temporary folder standing in for uploads/. Deleted by close(). */
   uploadsDir: string;
   /** Creates a user + session directly; returns the user and the cookie header. */
@@ -56,9 +61,13 @@ export interface TestApp {
   close: () => Promise<void>;
 }
 
-export async function createTestApp(extraControllers: Type[] = []): Promise<TestApp> {
+export async function createTestApp(
+  extraControllers: Type[] = [],
+  opts: { triageTimeoutMs?: number } = {},
+): Promise<TestApp> {
   const db = new FakePrisma();
   const mail = new FakeMail();
+  const model = new FakeTriageModel();
   const uploadsDir = mkdtempSync(path.join(tmpdir(), 'leaselens-uploads-'));
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -68,6 +77,10 @@ export async function createTestApp(extraControllers: Type[] = []): Promise<Test
     .useValue(db)
     .overrideProvider(MailService)
     .useValue(mail)
+    .overrideProvider(TriageModel)
+    .useValue(model)
+    .overrideProvider(TRIAGE_TIMEOUT_MS)
+    .useValue(opts.triageTimeoutMs ?? 15_000)
     .overrideProvider(StorageService)
     .useValue(new LocalStorageService(uploadsDir))
     .compile();
@@ -95,7 +108,7 @@ export async function createTestApp(extraControllers: Type[] = []): Promise<Test
     rmSync(uploadsDir, { recursive: true, force: true });
   };
 
-  return { app, db, mail, uploadsDir, signIn, signInAs, close };
+  return { app, db, mail, model, uploadsDir, signIn, signInAs, close };
 }
 
 /** Wait for background work (request-link issues tokens without blocking the response). */

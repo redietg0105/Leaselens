@@ -1,5 +1,10 @@
-import { Body, Controller, Get, Param, Post, Res, UploadedFiles, UseInterceptors } from '@nestjs/common';
-import { CreateWorkOrderSchema, type WorkOrderDetail, type WorkOrderSummary } from '@leaselens/shared';
+import { Body, Controller, Get, HttpCode, Param, Post, Res, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import {
+  CreateWorkOrderSchema,
+  SubmitAnswersSchema,
+  type WorkOrderDetail,
+  type WorkOrderSummary,
+} from '@leaselens/shared';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser, Roles } from '../auth/decorators';
@@ -35,6 +40,14 @@ export class WorkOrdersController {
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<WorkOrderDetail> {
     return this.workOrders.get(user, id);
+  }
+
+  /** Answers to the open follow-up questions (multiple choice). Triage then runs again. */
+  @Roles('TENANT')
+  @Post(':id/answers')
+  @HttpCode(200)
+  answers(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: unknown): Promise<WorkOrderDetail> {
+    return this.workOrders.submitAnswers(user, id, parseBody(SubmitAnswersSchema, body));
   }
 
   @Roles('TENANT', 'COORDINATOR', 'MANAGER')

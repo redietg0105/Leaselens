@@ -63,6 +63,25 @@ metadata (GPS, device) and saved under `uploads/work-orders/` (gitignored; overr
 Only the file key is stored in the database, and the API serves a photo only to the tenant who created the
 request or to coordinators/managers. The unit always comes from the signed-in tenant's database record.
 
+## AI triage (Gemini)
+
+After a tenant submits, the API answers right away ("Received") and triages in the background:
+
+1. **Emergency rules first (no AI)** — gas smell, fire/smoke, water through the ceiling, flooding, sparks or
+   burning smell, no heat during the heating season, a vulnerable person locked out. A match sets EMERGENCY,
+   shows the tenant emergency instructions and alerts on-call (`notifications` table + API log).
+2. **Gemini** gets only the scrubbed description, the cleaned photos, the unit type and any multiple-choice
+   answers — never names, emails, phone numbers, access notes, unit number or building. Tenant text sits
+   between random-id BEGIN/END markers and the model is told it is data, never instructions.
+3. The JSON reply is checked with the shared Zod schema. Invalid, an error, or no answer within 15 s →
+   `NEEDS_REVIEW`. Rules run again on the AI's text; the AI can raise urgency but never lower an emergency.
+4. Missing info → up to 2 approved questions on the tenant's request page; answers re-run triage once.
+5. Every run is saved in `triage_results` and `audit_log` (raw output, model, prompt version).
+
+**Your dev server calls Gemini for real** whenever a tenant submits or answers, and at startup for requests
+that have been waiting more than a minute (set `TRIAGE_SWEEP="off"` to disable that). To triage one request
+by hand: `npm run triage:once -w @leaselens/api -- <workOrderId> --rerun`.
+
 ## Troubleshooting
 
 - **"Too many requests" when signing in** — request-link allows 5 requests per IP per 15 minutes

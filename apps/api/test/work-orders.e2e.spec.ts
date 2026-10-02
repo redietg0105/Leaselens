@@ -68,22 +68,20 @@ describe('Tenant maintenance requests', () => {
         unit: { number: '302', building: 'Building A — Juniper Row' },
         photos: [],
       });
-      const stored = t.db.workOrders[0];
-      expect(stored).toMatchObject({ unitId: unitA.id, createdById: tenantA.user.id, status: 'SUBMITTED' });
+      // Background triage may already have moved it on; the stored unit and creator must not change.
+      expect(t.db.workOrders[0]).toMatchObject({ unitId: unitA.id, createdById: tenantA.user.id });
     });
 
     it('takes the unit from the database and ignores a unitId sent by the browser', async () => {
-      await submit(tenantA.cookie, { unitId: unitB.id, createdById: tenantB.user.id, status: 'COMPLETED' }).expect(201);
-      expect(t.db.workOrders[0]).toMatchObject({
-        unitId: unitA.id,
-        createdById: tenantA.user.id,
-        status: 'SUBMITTED',
-      });
+      const res = await submit(tenantA.cookie, { unitId: unitB.id, createdById: tenantB.user.id, status: 'COMPLETED' }).expect(201);
+      expect(res.body.status).toBe('SUBMITTED');
+      expect(t.db.workOrders[0]).toMatchObject({ unitId: unitA.id, createdById: tenantA.user.id });
+      expect(t.db.workOrders[0].status).not.toBe('COMPLETED');
     });
 
     it('records who created it in the audit log, from the session', async () => {
       const res = await submit(tenantA.cookie).expect(201);
-      expect(t.db.auditLogs).toEqual([
+      expect(t.db.auditLogs.filter((a) => a.action === 'workorder.create')).toEqual([
         expect.objectContaining({
           actorId: tenantA.user.id,
           action: 'workorder.create',
@@ -219,7 +217,7 @@ describe('Tenant maintenance requests', () => {
       const res = await http().get('/work-orders/mine').set('Cookie', tenantA.cookie).expect(200);
       const list = res.body.map((r: unknown) => WorkOrderSummarySchema.parse(r));
       expect(list.map((r: { id: string }) => r.id)).toEqual([second.body.id, first.body.id]);
-      expect(list[0]).toMatchObject({ status: 'SUBMITTED', photoCount: 1 });
+      expect(list[0]).toMatchObject({ photoCount: 1 });
     });
 
     it('returns an empty list for a tenant with no requests', async () => {
