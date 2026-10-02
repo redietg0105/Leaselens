@@ -67,6 +67,8 @@ LeaseLens is an early-stage PropTech startup. Pilot customer: Capitol Residentia
   Embeddings: `gemini-embedding-001` with outputDimensionality 768. (Production: Vertex AI + Document AI.)
 - **Files**: local `uploads/` folder in dev behind a storage interface (Cloud Storage in production).
 - **Auth**: passwordless magic link. In dev the link is printed in the API terminal (SendGrid in production).
+  The link opens a web page (`/auth/verify`) where the user clicks to confirm, which calls `POST /auth/verify`;
+  this stops email link scanners from using up the one-time link.
   Server issues an httpOnly session cookie; role comes from the database, never from the client.
 - **Notifications**: `notifications` table + console log in dev (Twilio/SendGrid in production).
 - **Local ports**: web 3000, API 4100 (`PORT`). Not 4000: NoMachine uses it on the dev machine.
@@ -90,7 +92,7 @@ Seed: 4 buildings, 40 units, 1 user per role (tenant in Building A), 8 vendors a
 
 ## 7. Key API endpoints
 
-POST /auth/request-link · GET /auth/verify · POST /auth/logout · GET /me
+POST /auth/request-link · POST /auth/verify · POST /auth/logout · GET /me
 POST /uploads · POST /work-orders · GET /work-orders/:id · POST /work-orders/:id/answers
 GET /staff/queue · POST /work-orders/:id/override · GET /work-orders/:id/vendors · POST /work-orders/:id/dispatch
 GET /vendor/jobs · POST /vendor/jobs/:id/complete

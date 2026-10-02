@@ -159,14 +159,13 @@ model MagicLinkToken {
   @@map("magic_link_tokens")
 }
 
-/// Only a SHA-256 hash of the session cookie value is stored.
+/// Only a SHA-256 hash of the session cookie value is stored. Sign-out deletes the row.
 model Session {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  tokenHash String    @unique
+  tokenHash String   @unique
   expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

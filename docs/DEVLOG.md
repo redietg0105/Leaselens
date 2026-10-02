@@ -63,3 +63,34 @@ add DIRECT_URL to .env.example; run tests; commit.
 - Prisma warns that `package.json#prisma` (seed config) is deprecated in Prisma 7 — fine on Prisma 6.
 
 **Time spent:** ~45 min
+
+## 2026-10-02 — Session 4: magic-link authentication
+
+**Prompt:** Add passwordless magic-link sign-in per SPEC using the MagicLinkToken and Session tables (hashed
+tokens only): same "check your email" response for any email, dev link printed in the API terminal, 15-minute
+one-time links, 7-day httpOnly SameSite session cookie checked on every request, sign-out deletes the session,
+rate-limited request-link, role guards on every API route (role from the database), redirect tenants/vendors
+to /tenant and staff to /staff, header with signed-in user + sign-out, cookie working across :3000 and :4100.
+Tests: tenant blocked from staff endpoint, expired/reused link rejected, unknown email same response.
+
+**Built**
+- API: `AuthModule` (`POST /auth/request-link`, `POST /auth/verify`, `POST /auth/logout`, `GET /me`),
+  `PrismaModule`, `MailService` (prints link in dev). Global guards: throttler → `SessionGuard` → `RolesGuard`
+  (deny by default; routes must be `@Public()` or `@Roles(...)`). `/health` stays public.
+- Link issuing runs in the background so response time doesn't reveal whether an account exists. Max 3 links
+  per email per 15 minutes; 5 request-link calls per IP per 15 minutes; verify 20/min.
+- Verify is a single atomic `updateMany` (unused + unexpired) so a link can't be used twice.
+- Migration `drop_session_revoked_at` (sign-out deletes the row instead).
+- Web: `/signin`, `/auth/verify` (click to confirm), `proxy.ts` (no cookie → /signin), `requireArea()` in each
+  protected page, header with name/role and sign-out. SPEC §7 now says `POST /auth/verify`.
+- Tests: 52 total (in-memory fake database, no network). Browser check against Neon with seeded users: 16 checks, all passing.
+
+**Problems and fixes**
+- Emails with surrounding spaces were rejected: Zod validated before trimming → trim/lowercase first.
+- API crashed on start ("No driver (HTTP)"): after new installs npm left `@nestjs/platform-express` nested
+  under `apps/api` while `@nestjs/core` was hoisted. Tests still passed because `@nestjs/testing` was nested
+  next to it. Removed the nested entries and reinstalled so all Nest packages sit together.
+- Playwright `getByRole('alert')` matched Next's hidden route announcer; checked the message text instead.
+- Rate limit message was "ThrottlerException: Too Many Requests" → friendlier message.
+
+**Time spent:** ~1 h 30 min

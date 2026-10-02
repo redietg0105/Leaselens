@@ -40,7 +40,25 @@ npm run dev
 | `npm run db:seed` | **Wipe** the database and load fictional sample data (4 buildings, 40 units, 5 users, 8 vendors, 12 work orders) |
 | `npm run db:studio` | Browse the tables in Prisma Studio (http://localhost:5555) |
 
+## Signing in (development)
+
+1. Open http://localhost:3000/signin and enter a seeded email, e.g. `tenant@leaselens.test` or
+   `coordinator@leaselens.test` (others: `vendor@`, `leasing@`, `manager@leaselens.test`).
+2. The sign-in link is printed in the **API terminal** (no email is sent in development).
+3. Open it and press **Sign in**. Links expire after 15 minutes and work once; sessions last 7 days.
+
+How it works: the API sets an httpOnly, SameSite=Lax cookie (`ll_session`). `localhost:3000` and
+`localhost:4100` are the same site (ports don't count), so the browser sends it to both. Only a SHA-256
+hash of each token is stored. Every API route is denied unless it is marked `@Public()` or lists its roles
+with `@Roles(...)`; the role is read from the database on every request.
+
+**Production note:** the web and API services must share a parent domain (e.g. `app.example.com` and
+`api.example.com`) for the cookie to work, and the API must run behind HTTPS (`Secure` cookie).
+
 ## Troubleshooting
+
+- **"Too many requests" when signing in** — request-link allows 5 requests per IP per 15 minutes
+  (and 3 links per email). Restart the API to reset the counters in development.
 
 - **`db:migrate` asks for a migration name with no schema change** — someone added an index Prisma can't
   describe (e.g. HNSW on `embeddings.vector`). Prisma 6 sees it as drift. Keep vector indexes out until we
