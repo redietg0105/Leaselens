@@ -101,6 +101,7 @@ npm run dev          # web on http://localhost:3000, API on http://localhost:410
 
 Open http://localhost:3000, choose **Tenant** or **Staff**, and sign in with a [demo account](#demo-accounts).
 The sign-in link appears in the **API terminal** (look for `Sign-in link for …`); open it and press **Sign in**.
+Or turn on [demo mode](#demo-mode-local-only) to sign in from the browser with one click.
 
 ## Scripts
 
@@ -131,6 +132,23 @@ All fictional (`.test` addresses can't receive mail). Created by `npm run db:see
 | Coordinator | `coordinator@leaselens.test` | `/staff` | Riley Castellan — queue, overrides, dispatch |
 | Manager | `manager@leaselens.test` | `/staff` | Morgan Pell — same staff tools |
 | Leasing | `leasing@leaselens.test` | `/staff` | Avery Lindqvist — lease tools are the next phase |
+
+### Demo mode (local only)
+
+To let someone try LeaseLens without watching the API terminal, set this in `apps/api/.env` and restart:
+
+```ini
+DEMO_MODE="on"
+```
+
+- The sign-in page shows the five demo accounts as one-click buttons that fill in the email.
+- After **Email me a sign-in link**, a highlighted box says *"Demo mode — in the live app this link is emailed"*
+  with a **Sign in now** button — no inbox or terminal needed.
+- Unknown emails still get exactly the normal response (no link), and the rate limits still apply.
+- **Trade-off (accepted for local demos):** because known accounts get a link and unknown ones don't, demo mode
+  reveals which emails have an account. Never turn it on where real people's accounts exist.
+- It can't reach production: demo mode only works when `NODE_ENV` isn't `production`, and the API refuses to
+  start with `DEMO_MODE="on"` in production. The default is `"off"`.
 
 The demo data has 4 buildings, 40 units, 8 vendors across all trades and 12 work orders covering every urgency
 and status, including three emergencies (ceiling leak, gas smell, sparking outlet).
@@ -166,10 +184,13 @@ From [CLAUDE.md](CLAUDE.md) and SPEC §4 — how each is enforced, and where it'
 - HTTP: Helmet headers, CORS limited to the web app, central error handler (JSON, no stack traces) with a
   request id in every error and log line; same-site-only return paths (no open redirects).
 - Logging: structured pino logs; cookies, `Set-Cookie` and `Authorization` are redacted (tested).
+- Demo mode (sign-in links shown in the browser) is off by default, only works outside production, and the API
+  refuses to start with it on in production (tested).
 - Secrets: only placeholder `.env.example` files are tracked; `.env`, `uploads/` and build output are gitignored;
   git history scanned — no keys, passwords or database hosts in any commit.
 
 **Gaps (known, for the next phase)**
+- With `DEMO_MODE="on"` the sign-in page reveals which emails have accounts — acceptable for local demos only.
 - Email sending isn't wired up — in production nobody could sign in yet (links are only printed in development).
 - Rate limits are in memory: per server instance and reset on restart; behind a proxy, set the trusted proxy so
   real client IPs are used.
@@ -185,11 +206,12 @@ From [CLAUDE.md](CLAUDE.md) and SPEC §4 — how each is enforced, and where it'
 
 ## Testing
 
-`npm test` runs **270 API tests** in about 10 seconds — no network or database: the API runs against an
+`npm test` runs **285 API tests** in about 10 seconds — no network or database: the API runs against an
 in-memory fake of Prisma and a fake Gemini that records exactly what would be sent. Covered: sign-in and
 sessions, role guards, tenant and vendor isolation, validation and photo rules, every emergency rule and the
 heating season, AI success/failure/timeout/invalid output, privacy and prompt injection, follow-ups, overrides,
-vendor ranking and auto-dispatch limits, vendor completion, request ids, log redaction and settings checks.
+vendor ranking and auto-dispatch limits, vendor completion, demo mode (never a link outside demo mode, in production or for unknown emails), request ids, log
+redaction and settings checks.
 Several safety tests were checked by deliberately breaking the rule they guard (see DEVLOG).
 
 Each feature was also checked in a real browser (Edge, desktop and 390 px phone width) against Neon, using

@@ -31,6 +31,9 @@ export const EnvSchema = z.object({
   TRIAGE_SWEEP: z.enum(['on', 'off'], { error: 'TRIAGE_SWEEP must be "on" or "off"' }).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
+  DEMO_MODE: z.enum(['on', 'off'], { error: 'DEMO_MODE must be "on" or "off"' }).optional(),
+}).refine((e) => !(e.DEMO_MODE === 'on' && e.NODE_ENV === 'production'), {
+  message: 'DEMO_MODE must be "off" when NODE_ENV is production — demo mode shows sign-in links in the browser.',
 });
 
 export interface EnvCheck {

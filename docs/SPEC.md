@@ -110,7 +110,7 @@ Seed: 4 buildings, 40 units, 1 user per role (tenant in Building A), 8 vendors a
 
 ## 7. Key API endpoints
 
-POST /auth/request-link · POST /auth/verify · POST /auth/logout · GET /me
+POST /auth/request-link · POST /auth/verify · POST /auth/logout · GET /me · GET /auth/demo (demo mode only lists accounts)
 POST /work-orders (multipart: fields + up to 3 photos) · GET /work-orders/mine · GET /work-orders/:id ·
 GET /work-orders/:id/media/:mediaId · POST /work-orders/:id/answers
 GET /staff/queue?urgency=&status= · GET /staff/work-orders/:id · POST /work-orders/:id/override ·

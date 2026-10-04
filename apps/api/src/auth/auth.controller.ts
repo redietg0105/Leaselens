@@ -1,16 +1,20 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
+  DEMO_ACCOUNTS,
   REQUEST_LINK_MESSAGE,
   RequestLinkSchema,
   SESSION_COOKIE,
   SESSION_TTL_DAYS,
   VerifyLinkSchema,
+  type DemoInfo,
   type Me,
+  type RequestLinkResponse,
   type VerifyLinkResponse,
 } from '@leaselens/shared';
 import type { CookieOptions, Request, Response } from 'express';
 import { parseBody } from '../common/parse-body';
+import { isDemoMode } from '../config/demo';
 import { AuthService } from './auth.service';
 import type { AuthUser } from './auth.types';
 import { ALL_ROLES, CurrentUser, Public, Roles } from './decorators';
@@ -40,10 +44,18 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 15 * MINUTE } })
   @Post('auth/request-link')
   @HttpCode(200)
-  requestLink(@Body() body: unknown) {
+  async requestLink(@Body() body: unknown): Promise<RequestLinkResponse> {
     const { email } = parseBody(RequestLinkSchema, body, 'Enter a valid email address.');
-    this.auth.requestLink(email);
-    return { message: REQUEST_LINK_MESSAGE };
+    const { demoSignInUrl } = await this.auth.requestLink(email);
+    // Outside demo mode (and for unknown emails) this is always exactly { message }.
+    return demoSignInUrl ? { message: REQUEST_LINK_MESSAGE, demo: { signInUrl: demoSignInUrl } } : { message: REQUEST_LINK_MESSAGE };
+  }
+
+  /** Whether demo mode is on and, only then, the demo accounts for the sign-in page. */
+  @Public()
+  @Get('auth/demo')
+  demo(): DemoInfo {
+    return isDemoMode() ? { enabled: true, accounts: [...DEMO_ACCOUNTS] } : { enabled: false };
   }
 
   @Public()

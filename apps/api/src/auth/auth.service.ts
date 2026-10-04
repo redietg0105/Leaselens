@@ -5,6 +5,7 @@ import {
   MAGIC_LINK_TTL_MINUTES,
   SESSION_TTL_DAYS,
 } from '@leaselens/shared';
+import { isDemoMode } from '../config/demo';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from './auth.types';
 import { MailService } from './mail.service';
@@ -38,15 +39,25 @@ export class AuthService {
    * Starts sign-in for an email. The caller sends the same response whether or not the account
    * exists, and the work runs in the background so response time doesn't reveal it either.
    */
-  requestLink(email: string): void {
-    this.issueLink(email).catch((err: unknown) =>
-      this.logger.error(`Could not issue sign-in link: ${err instanceof Error ? err.message : String(err)}`),
-    );
+  async requestLink(email: string): Promise<{ demoSignInUrl?: string }> {
+    const failed = (err: unknown) => {
+      this.logger.error(`Could not issue sign-in link: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    };
+    if (isDemoMode()) {
+      // Demo mode (local only): wait for the link so the browser can show it. Unknown emails, and
+      // emails over the per-email limit, get no link — the same response as outside demo mode.
+      const url = await this.issueLink(email).catch(failed);
+      return url ? { demoSignInUrl: url } : {};
+    }
+    void this.issueLink(email).catch(failed);
+    return {};
   }
 
-  private async issueLink(email: string): Promise<void> {
+  /** Creates and "emails" a link for a known account. Returns the link, or null if none was issued. */
+  private async issueLink(email: string): Promise<string | null> {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) return;
+    if (!user) return null;
 
     const now = new Date();
     const recent = await this.prisma.magicLinkToken.count({
@@ -54,7 +65,7 @@ export class AuthService {
     });
     if (recent >= LINKS_PER_EMAIL_WINDOW) {
       this.logger.warn(`Sign-in link limit reached for user ${user.id}`);
-      return;
+      return null;
     }
 
     const token = generateToken();
@@ -66,7 +77,9 @@ export class AuthService {
       },
     });
     const webUrl = process.env.WEB_URL ?? 'http://localhost:3000';
-    await this.mail.sendMagicLink(email, `${webUrl}/auth/verify?token=${encodeURIComponent(token)}`);
+    const url = `${webUrl}/auth/verify?token=${encodeURIComponent(token)}`;
+    await this.mail.sendMagicLink(email, url);
+    return url;
   }
 
   /** Uses a magic link once and starts a session. Expired, used and unknown links all fail the same way. */

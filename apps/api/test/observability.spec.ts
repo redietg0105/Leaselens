@@ -145,7 +145,7 @@ describe('.env.example files', () => {
   it('documents every setting the code reads', () => {
     for (const key of [
       'DATABASE_URL', 'DIRECT_URL', 'GEMINI_API_KEY', 'GEMINI_MODEL', 'GEMINI_FALLBACK_MODEL', 'TRIAGE_TIMEOUT_MS',
-      'TRIAGE_SWEEP', 'HEATING_SEASON_START', 'HEATING_SEASON_END', 'AUTO_DISPATCH_LIMIT_USD', 'PORT', 'WEB_URL', 'LOG_LEVEL',
+      'TRIAGE_SWEEP', 'HEATING_SEASON_START', 'HEATING_SEASON_END', 'AUTO_DISPATCH_LIMIT_USD', 'PORT', 'WEB_URL', 'LOG_LEVEL', 'DEMO_MODE',
     ]) {
       expect(api).toHaveProperty(key);
     }

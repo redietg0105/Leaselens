@@ -47,3 +47,30 @@ export function homePathForRole(role: Role): '/tenant' | '/staff' | '/vendor/job
   const area = areaForRole(role);
   return area === '/vendor' ? '/vendor/jobs' : area;
 }
+
+// ───────────── Demo mode (local only) ─────────────
+
+/** The seeded demo accounts, shown as one-click buttons on the sign-in page in demo mode. */
+export const DEMO_ACCOUNTS = [
+  { role: 'TENANT', label: 'Tenant', email: 'tenant@leaselens.test', name: 'Jordan Ellery' },
+  { role: 'COORDINATOR', label: 'Coordinator', email: 'coordinator@leaselens.test', name: 'Riley Castellan' },
+  { role: 'MANAGER', label: 'Manager', email: 'manager@leaselens.test', name: 'Morgan Pell' },
+  { role: 'VENDOR', label: 'Vendor', email: 'vendor@leaselens.test', name: 'Sam Thornbury' },
+  { role: 'LEASING', label: 'Leasing', email: 'leasing@leaselens.test', name: 'Avery Lindqvist' },
+] as const satisfies readonly { role: Role; label: string; email: string; name: string }[];
+export type DemoAccount = (typeof DEMO_ACCOUNTS)[number];
+
+export const RequestLinkResponseSchema = z.object({
+  message: z.string(),
+  /** Only in demo mode, only for a known account: the link that would have been emailed. */
+  demo: z.object({ signInUrl: z.url() }).optional(),
+});
+export type RequestLinkResponse = z.infer<typeof RequestLinkResponseSchema>;
+
+export const DemoInfoSchema = z.object({
+  enabled: z.boolean(),
+  accounts: z
+    .array(z.object({ role: RoleSchema, label: z.string(), email: z.string(), name: z.string() }))
+    .optional(),
+});
+export type DemoInfo = z.infer<typeof DemoInfoSchema>;

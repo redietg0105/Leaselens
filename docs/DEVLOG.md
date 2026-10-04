@@ -310,3 +310,34 @@ Jest 30 upgrade or deepmerge-ts override if either breaks anything.
   them); restarted for the smoke test and stopped again.
 
 **Time spent:** ~1 h 30 min
+
+## 2026-10-04 — Session 11: demo mode
+
+**Prompt:** Add a clearly labelled demo mode for local use: with DEMO_MODE="on" and NODE_ENV not production, the
+request-link response for a known account also returns the sign-in link and "Check your email" shows "Demo mode
+— in the live app this link is emailed" with a "Sign in now" button; the sign-in page lists the five demo
+accounts as one-click buttons; unknown emails get exactly the same response with no link; rate limits stay on;
+the API refuses to start with DEMO_MODE on in production; .env.example (default "off"), README, tests. The user
+accepted that demo mode reveals which emails have accounts (local only, blocked in production).
+
+**Built**
+- Shared: `DEMO_ACCOUNTS` (the five seeded users), `RequestLinkResponseSchema` (optional `demo.signInUrl`),
+  `DemoInfoSchema`.
+- API: `isDemoMode()` (DEMO_MODE="on" and NODE_ENV ≠ production, checked on every use); startup check rejects
+  demo mode in production and values other than on/off; request-link waits for the link only in demo mode and
+  returns it for known accounts under the per-email limit; `GET /auth/demo` lists accounts only in demo mode.
+- Web: demo accounts box on the sign-in page; demo sign-in box with one-click "Sign in now" (calls
+  `POST /auth/verify` directly); falls back to normal behaviour if the API is unreachable.
+- `DEMO_MODE="off"` in the API and root `.env.example` (pointer in the web one); README section + security notes;
+  SPEC §7 lists `GET /auth/demo`.
+- Tests: 15 new (no link when off / unset / production / unknown email / over the per-email cap; the link signs
+  in; IP rate limit still 429; `/auth/demo` only in demo mode; startup rule; demo accounts match the seed).
+  Mutation check: ignoring NODE_ENV fails 3 tests. 285 total.
+
+**Checks:** API with NODE_ENV=production + DEMO_MODE=on exits with the config error. Browser (a demo copy on
+:3001/:4101; the user's own :3000/:4100 left running with demo off): demo buttons, unknown email → no link,
+one-click sign-in for tenant, coordinator, vendor and manager, 6th request → "Too many attempts"; demo off →
+no buttons and no link for a known account. 15/16 checks; the 16th flagged the browser's console note for the
+intended 429, not an app error.
+
+**Time spent:** ~1 h
