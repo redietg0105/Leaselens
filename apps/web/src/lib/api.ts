@@ -42,7 +42,10 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
           : typeof data === "object" && data && "message" in data && typeof data.message === "string"
             ? data.message
             : "Something went wrong. Please try again.";
-    throw new ApiError(res.status, message);
+    // For server errors, add a short reference from the request id so a problem can be traced in the logs.
+    const requestId =
+      typeof data === "object" && data && "requestId" in data && typeof data.requestId === "string" ? data.requestId : null;
+    throw new ApiError(res.status, res.status >= 500 && requestId ? `${message} (reference ${requestId.slice(0, 8)})` : message);
   }
   return data as T;
 }

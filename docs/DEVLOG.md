@@ -273,3 +273,40 @@ tenant sees "Completed". Seeded rows restored and test rows/photos removed after
   apart by `model === "human"`, and the vendor summary reads both formats.
 
 **Time spent:** ~3 h
+
+## 2026-10-03 — Session 10: submission clean-up
+
+**Prompt:** Organize the project for submission: clean structure, professional README (problem, stack, features,
+Windows setup, Neon + Gemini how-to, scripts, demo accounts, responsible-AI rules, known limitations incl. no
+Gas/utilities category and AI confidence shown after overrides, next phase), complete `.env.example` files with
+placeholders only, no secrets in git history, npm audit / typecheck / lint / tests fixed, security checklist,
+commit and push to GitHub. Follow-up: pino with cookie/authorization redaction; no license file; revert the
+Jest 30 upgrade or deepmerge-ts override if either breaks anything.
+
+**Done**
+- Secrets: scanned all 9 commits for key/password/host patterns and for the actual values in `apps/api/.env`
+  (without printing them) — none found; only placeholder `.env.example` files were ever committed.
+- npm audit: 39 high → 12 (production 10 → 3). Jest 29 → 30 (all tests pass); `shadcn` moved to
+  devDependencies (build-time CSS only). Remaining: `braces` via ESLint/shadcn CLI (no fixed version exists)
+  and `deepmerge-ts` via the Prisma CLI.
+- Reverted: the `deepmerge-ts` 8 override — Prisma 6 pins 7.1.5 exactly and npm then left the package out,
+  breaking every Prisma command. Package files restored; documented as a known finding.
+- API error handling: pino structured logs via `nestjs-pino` with request ids (`X-Request-Id`, also in every
+  error body), cookie/Set-Cookie/Authorization redaction, short request lines, `/health` not logged; startup
+  settings check with clear messages (fail fast); shutdown hooks; unhandled-rejection logging; `zod` declared.
+- Web: `global-error.tsx`; server errors show a short reference from the request id.
+- `.env.example` files rewritten: every setting the code reads, placeholders only, one comment each;
+  `SESSION_SECRET` documented honestly as reserved (unused); test checks they parse, pass the startup check
+  and contain no real-looking keys.
+- Root scripts `typecheck` and `check`. README rewritten for reviewers, with a security checklist.
+- Checks: `npm run check` (typecheck + lint + 270 tests) passes; API started with the real `.env` and a request
+  carrying a fake session cookie and bearer token → request id in header, body and log, secrets not logged;
+  browser smoke test of all five roles at 390px: 20/20.
+
+**Problems and fixes**
+- `z.url()` accepted `localhost:3000` (scheme "localhost:") → require http/https.
+- An isolation test compared two error bodies exactly; they now differ by request id → compare without it.
+- The user's dev servers stopped during this session (likely the package installs replacing files under
+  them); restarted for the smoke test and stopped again.
+
+**Time spent:** ~1 h 30 min

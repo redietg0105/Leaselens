@@ -234,7 +234,9 @@ describe('Tenant maintenance requests', () => {
 
       // Same response as for a request that doesn't exist at all.
       const missing = await http().get('/work-orders/does-not-exist').set('Cookie', tenantB.cookie).expect(404);
-      expect(missing.body).toEqual(detail.body);
+      const { requestId: _a, ...missingBody } = missing.body;
+      const { requestId: _b, ...detailBody } = detail.body;
+      expect(missingBody).toEqual(detailBody); // only the per-request id differs
 
       // The owner still can.
       await http().get(`/work-orders/${a.body.id}`).set('Cookie', tenantA.cookie).expect(200);
