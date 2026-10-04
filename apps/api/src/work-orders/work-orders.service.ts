@@ -146,11 +146,11 @@ export class WorkOrdersService {
       description: w.description,
       status: w.status,
       createdAt: w.createdAt.toISOString(),
-      photoCount: w.media.length,
+      photoCount: w.media.filter((m) => m.kind === 'REQUEST').length,
       entryPermission: w.entryPermission,
       accessNotes: w.accessNotes,
       unit: { number: w.unit.number, building: w.unit.building.name },
-      photos: w.media.map((m) => ({ id: m.id, url: `/work-orders/${w.id}/media/${m.id}` })),
+      photos: w.media.filter((m) => m.kind === 'REQUEST').map((m) => ({ id: m.id, url: `/work-orders/${w.id}/media/${m.id}` })),
       emergencyRule: (w.emergencyRule as EmergencyRuleId | null) ?? null,
       urgency: w.urgency,
       category: w.category,
@@ -159,6 +159,10 @@ export class WorkOrdersService {
         const q = getQuestion(qid);
         return q ? [{ id: q.id, text: q.text, options: q.options }] : [];
       }),
+      completion: (() => {
+        const done = w.dispatches.find((d) => d.completedAt);
+        return done ? { completedAt: done.completedAt!.toISOString(), note: done.completionNote } : null;
+      })(),
       answers: w.followUpAnswers.map((a) => {
         const q = getQuestion(a.questionId);
         return {
@@ -229,14 +233,19 @@ export class WorkOrdersService {
     const w = await this.prisma.workOrder.findUnique({
       where: { id },
       include: {
-        media: { where: { kind: 'REQUEST' }, orderBy: { createdAt: 'asc' } },
+        media: { orderBy: { createdAt: 'asc' } },
         unit: { include: { building: true } },
         triageResults: { orderBy: { createdAt: 'desc' }, take: 1 },
         followUpAnswers: { orderBy: { createdAt: 'asc' } },
+        dispatches: { orderBy: { createdAt: 'desc' } },
       },
     });
     const allowed =
-      !!w && (STAFF_READERS.has(user.role) || (user.role === 'TENANT' && w.createdById === user.id));
+      !!w &&
+      (STAFF_READERS.has(user.role) ||
+        (user.role === 'TENANT' && w.createdById === user.id) ||
+        // Vendors only reach this through the photo route, for jobs dispatched to their company.
+        (user.role === 'VENDOR' && !!user.vendorId && w.dispatches.some((d) => d.vendorId === user.vendorId)));
     if (!w || !allowed) throw new NotFoundException(NOT_FOUND_MESSAGE);
     return w;
   }

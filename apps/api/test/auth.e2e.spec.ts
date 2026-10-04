@@ -133,7 +133,7 @@ describe('Magic-link authentication', () => {
     });
 
     it.each([
-      ['VENDOR', '/tenant'],
+      ['VENDOR', '/vendor/jobs'],
       ['COORDINATOR', '/staff'],
       ['LEASING', '/staff'],
       ['MANAGER', '/staff'],

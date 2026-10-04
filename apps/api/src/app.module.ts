@@ -5,7 +5,9 @@ import { AuthModule } from './auth/auth.module';
 import { RolesGuard } from './auth/roles.guard';
 import { SessionGuard } from './auth/session.guard';
 import { HealthController } from './health/health.controller';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { StaffModule } from './staff/staff.module';
 import { StorageModule } from './storage/storage.module';
 import { WorkOrdersModule } from './work-orders/work-orders.module';
 
@@ -18,8 +20,10 @@ import { WorkOrdersModule } from './work-orders/work-orders.module';
     }),
     PrismaModule,
     StorageModule,
+    NotificationsModule,
     AuthModule,
     WorkOrdersModule,
+    StaffModule,
   ],
   controllers: [HealthController],
   providers: [

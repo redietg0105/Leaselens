@@ -55,6 +55,16 @@ export default async function RequestDetailPage({
         <h1 className="text-xl font-semibold tracking-tight">Maintenance request</h1>
       </header>
 
+      {request.completion && (
+        <section aria-labelledby="done-heading" className="space-y-1 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-50">
+          <h2 id="done-heading" className="flex items-center gap-2 font-semibold">
+            <CheckCircle2 aria-hidden className="size-5" />
+            Completed {formatDate(request.completion.completedAt)}
+          </h2>
+          {request.completion.note && <p className="whitespace-pre-wrap break-words">Technician&apos;s note: {request.completion.note}</p>}
+        </section>
+      )}
+
       {request.status === "SUBMITTED" && <AutoRefresh />}
 
       {request.status === "NEEDS_INFO" && request.followUpQuestions.length > 0 && (

@@ -13,6 +13,7 @@ import { Roles, STAFF } from '../../src/auth/decorators';
 import { configureApp } from '../../src/configure-app';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { LocalStorageService, StorageService } from '../../src/storage/storage.service';
+import { AUTO_DISPATCH_LIMIT_USD } from '../../src/dispatch/dispatch.service';
 import { TriageModel } from '../../src/triage/triage-model';
 import { TRIAGE_TIMEOUT_MS } from '../../src/triage/triage.service';
 import { FakePrisma, type FakeUser } from './fake-prisma';
@@ -46,6 +47,12 @@ class TestRoutesController {
   }
 }
 
+export interface SignInOpts {
+  expiresAt?: Date;
+  unitId?: string | null;
+  vendorId?: string | null;
+}
+
 export interface TestApp {
   app: INestApplication;
   db: FakePrisma;
@@ -55,15 +62,15 @@ export interface TestApp {
   /** Temporary folder standing in for uploads/. Deleted by close(). */
   uploadsDir: string;
   /** Creates a user + session directly; returns the user and the cookie header. */
-  signIn: (role: Role, opts?: { expiresAt?: Date; unitId?: string | null }) => { user: FakeUser; cookie: string };
+  signIn: (role: Role, opts?: SignInOpts) => { user: FakeUser; cookie: string };
   /** Shorthand for signIn(...).cookie. */
-  signInAs: (role: Role, opts?: { expiresAt?: Date; unitId?: string | null }) => string;
+  signInAs: (role: Role, opts?: SignInOpts) => string;
   close: () => Promise<void>;
 }
 
 export async function createTestApp(
   extraControllers: Type[] = [],
-  opts: { triageTimeoutMs?: number } = {},
+  opts: { triageTimeoutMs?: number; autoDispatchLimitUsd?: number } = {},
 ): Promise<TestApp> {
   const db = new FakePrisma();
   const mail = new FakeMail();
@@ -81,6 +88,8 @@ export async function createTestApp(
     .useValue(model)
     .overrideProvider(TRIAGE_TIMEOUT_MS)
     .useValue(opts.triageTimeoutMs ?? 25_000)
+    .overrideProvider(AUTO_DISPATCH_LIMIT_USD)
+    .useValue(opts.autoDispatchLimitUsd ?? 0) // off unless a test turns it on
     .overrideProvider(StorageService)
     .useValue(new LocalStorageService(uploadsDir))
     .compile();
@@ -89,8 +98,8 @@ export async function createTestApp(
   configureApp(app);
   await app.init();
 
-  const signIn = (role: Role, opts: { expiresAt?: Date; unitId?: string | null } = {}) => {
-    const user = db.addUser(`${role.toLowerCase()}-${db.users.length}@leaselens.test`, role, undefined, opts.unitId ?? null);
+  const signIn = (role: Role, opts: SignInOpts = {}) => {
+    const user = db.addUser(`${role.toLowerCase()}-${db.users.length}@leaselens.test`, role, undefined, opts.unitId ?? null, opts.vendorId ?? null);
     const token = generateToken();
     db.sessions.push({
       id: `sess_direct_${db.sessions.length}`,

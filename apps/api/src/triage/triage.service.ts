@@ -9,6 +9,8 @@ import {
   type Urgency,
 } from '@leaselens/shared';
 import type { Prisma, WorkOrderStatus } from '@prisma/client';
+import { DispatchService } from '../dispatch/dispatch.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { heatingSeasonFromEnv, matchEmergencyRule } from './emergency-rules';
@@ -45,6 +47,8 @@ export class TriageService implements OnApplicationBootstrap {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly model: TriageModel,
+    private readonly notifications: NotificationsService,
+    private readonly dispatch: DispatchService,
     @Inject(TRIAGE_TIMEOUT_MS) private readonly timeoutMs: number,
   ) {}
 
@@ -56,8 +60,7 @@ export class TriageService implements OnApplicationBootstrap {
   /** On-call alert. Console in development; Twilio/SendGrid later. */
   async notifyOnCall(tx: Tx, workOrderId: string, reason: string, description: string): Promise<void> {
     const body = `EMERGENCY (${reason}) work order ${workOrderId}: ${description.slice(0, 160)}`;
-    await tx.notification.create({ data: { channel: 'ONCALL', to: 'on-call coordinator', body, sentAt: new Date() } });
-    this.logger.warn(`[ON-CALL] ${body}`);
+    await this.notifications.send({ channel: 'ONCALL', to: 'on-call coordinator', body }, tx);
   }
 
   /** Starts triage in the background. Never throws; the tenant never waits for it. */
@@ -177,7 +180,12 @@ export class TriageService implements OnApplicationBootstrap {
         ? 'NEEDS_INFO' // one round of questions at most; emergencies never wait on questions
         : 'TRIAGED';
 
+    let stale = false;
     await this.prisma.$transaction(async (tx) => {
+      // A coordinator may have overridden the request while the AI was working. Their decision wins:
+      // keep this AI result in the history, but don't change the work order.
+      const current = await tx.workOrder.findUnique({ where: { id: wo.id } });
+      stale = !current || current.status !== 'SUBMITTED';
       const result = await tx.triageResult.create({
         data: {
           workOrderId: wo.id,
@@ -193,20 +201,22 @@ export class TriageService implements OnApplicationBootstrap {
           promptVersion: PROMPT_VERSION,
         },
       });
-      await tx.workOrder.update({
-        where: { id: wo.id },
-        data: {
-          status,
-          urgency: finalUrgency,
-          category: output?.category ?? wo.category,
-          emergencyRule: ruleAfter,
-          slaDueAt: finalUrgency ? new Date(wo.createdAt.getTime() + SLA_HOURS[finalUrgency] * 3_600_000) : wo.slaDueAt,
-        },
-      });
+      if (!stale) {
+        await tx.workOrder.update({
+          where: { id: wo.id },
+          data: {
+            status,
+            urgency: finalUrgency,
+            category: output?.category ?? wo.category,
+            emergencyRule: ruleAfter,
+            slaDueAt: finalUrgency ? new Date(wo.createdAt.getTime() + SLA_HOURS[finalUrgency] * 3_600_000) : wo.slaDueAt,
+          },
+        });
+      }
       await tx.auditLog.create({
         data: {
           actorId: null, // system / AI
-          action: output ? 'triage.ai' : 'triage.failed',
+          action: stale ? 'triage.ai.stale' : output ? 'triage.ai' : 'triage.failed',
           entity: 'WorkOrder',
           entityId: wo.id,
           before: { status: wo.status, urgency: wo.urgency, category: wo.category },
@@ -224,13 +234,24 @@ export class TriageService implements OnApplicationBootstrap {
           },
         },
       });
-      if (finalUrgency === 'EMERGENCY' && wo.urgency !== 'EMERGENCY') {
+      if (!stale && finalUrgency === 'EMERGENCY' && wo.urgency !== 'EMERGENCY') {
         await this.notifyOnCall(tx, wo.id, ruleAfter ?? 'ai', wo.description);
       }
     });
 
+    if (stale) {
+      this.logger.warn(`Triage ${wo.id}: changed by staff while the AI was running; AI result kept in history only`);
+      return;
+    }
     this.logger.log(
       `Triage ${wo.id}: ${status} ${finalUrgency ?? '-'} ${output?.category ?? '-'} (${model}${error ? `, ${error}` : ''})`,
     );
+
+    // Routine, confident, low-cost jobs may go straight to a vendor (logged either way).
+    if (status === 'TRIAGED') {
+      await this.dispatch.tryAutoDispatch(wo.id).catch((err: unknown) =>
+        this.logger.error(`Auto-dispatch failed for ${wo.id}: ${err instanceof Error ? err.message : String(err)}`),
+      );
+    }
   }
 }

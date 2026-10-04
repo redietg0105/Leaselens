@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { DispatchModule } from '../dispatch/dispatch.module';
 import { GeminiTriageModel, TriageModel } from './triage-model';
 import { TRIAGE_TIMEOUT_MS, TriageService, triageTimeoutFromEnv } from './triage.service';
 
 @Module({
+  imports: [DispatchModule],
   providers: [
     TriageService,
     { provide: TriageModel, useClass: GeminiTriageModel },

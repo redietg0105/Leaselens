@@ -1,7 +1,16 @@
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { homePathForRole, MeSchema, safeReturnPath, SESSION_COOKIE, type Me } from "@leaselens/shared";
+import {
+  areaForRole,
+  homePathForRole,
+  MeSchema,
+  safeReturnPath,
+  SESSION_COOKIE,
+  type Area,
+  type Me,
+  type Role,
+} from "@leaselens/shared";
 import type { z } from "zod";
 import { PATHNAME_HEADER } from "./request-path";
 import { apiUrl } from "./api";
@@ -45,19 +54,31 @@ export const getCurrentUser = cache(async (): Promise<Me | null> => {
  * client navigation). Not signed in → /signin. Wrong area → the user's own area.
  * The API still enforces roles on every endpoint; this only decides which page to show.
  */
-export async function requireArea(area: "/tenant" | "/staff"): Promise<Me> {
+export async function requireArea(area: Area): Promise<Me> {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
-  const home = homePathForRole(user.role);
-  if (home !== area) redirect(home);
+  // A vendor opening /tenant goes to /vendor/jobs, a tenant opening /vendor goes to /tenant, etc.
+  if (areaForRole(user.role) !== area) redirect(homePathForRole(user.role));
   return user;
 }
 
-/** Tenant-only pages. Vendors share the /tenant area but go back to its home. */
-export async function requireTenant(): Promise<Me> {
-  const user = await requireArea("/tenant");
-  if (user.role !== "TENANT") redirect("/tenant");
+/**
+ * For area layouts: send a signed-in user who is in the wrong area to their own home right away
+ * (a server redirect before anything renders). Pages still call requireArea() themselves.
+ */
+export async function redirectIfWrongArea(area: Area): Promise<Me | null> {
+  const user = await getCurrentUser();
+  if (user && areaForRole(user.role) !== area) redirect(homePathForRole(user.role));
   return user;
+}
+
+/** Tenant pages (only tenants have the /tenant area). */
+export const requireTenant = () => requireArea("/tenant");
+
+/** Pages for some roles within an area (e.g. the staff queue is for coordinators and managers). */
+export async function requireRoles(area: Area, roles: Role[]): Promise<Me | null> {
+  const user = await requireArea(area);
+  return roles.includes(user.role) ? user : null;
 }
 
 /**

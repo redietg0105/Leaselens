@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Camera, ChevronRight, ClipboardList, Plus } from "lucide-react";
 import { WorkOrderSummarySchema } from "@leaselens/shared";
-import { PlaceholderPage } from "@/components/placeholder-page";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { apiGet, requireArea } from "@/lib/session";
@@ -11,13 +10,7 @@ import { formatDate } from "@/lib/format";
 export const metadata: Metadata = { title: "My requests · LeaseLens" };
 
 export default async function TenantHome() {
-  const user = await requireArea("/tenant");
-
-  if (user.role === "VENDOR") {
-    return (
-      <PlaceholderPage title={`Hi, ${user.name.split(" ")[0]}`} description="Your assigned jobs will appear here." />
-    );
-  }
+  await requireArea("/tenant");
 
   const requests = await apiGet("/work-orders/mine", WorkOrderSummarySchema.array());
 

@@ -93,6 +93,8 @@ export const WorkOrderDetailSchema = WorkOrderSummarySchema.extend({
     }),
   ),
   answers: z.array(z.object({ questionId: z.string(), question: z.string(), answer: z.string() })),
+  /** Set when the vendor marked the job complete. */
+  completion: z.object({ completedAt: z.string(), note: z.string().nullable() }).nullable(),
 });
 export type WorkOrderDetail = z.infer<typeof WorkOrderDetailSchema>;
 

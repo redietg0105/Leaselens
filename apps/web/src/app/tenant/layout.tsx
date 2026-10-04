@@ -1,12 +1,12 @@
 import { AppHeader } from "@/components/app-header";
-import { getCurrentUser } from "@/lib/session";
+import { redirectIfWrongArea } from "@/lib/session";
 
 /** Shell for /tenant. The access check itself is in each page (requireArea). */
 export default async function Layout({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
+  const user = await redirectIfWrongArea("/tenant");
   return (
     <>
-      {user && <AppHeader user={user} area="/tenant" />}
+      {user && <AppHeader user={user} />}
       {children}
     </>
   );

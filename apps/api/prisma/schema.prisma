@@ -281,16 +281,18 @@ model TriageResult {
 }
 
 model Dispatch {
-  id             String    @id @default(cuid())
-  workOrderId    String
-  vendorId       String
-  approvedById   String? // null only when autoDispatched
-  autoDispatched Boolean   @default(false)
-  scheduledFor   DateTime?
-  completedAt    DateTime?
-  completionNote String?
-  costUsd        Decimal?  @db.Decimal(10, 2)
-  createdAt      DateTime  @default(now())
+  id               String    @id @default(cuid())
+  workOrderId      String
+  vendorId         String
+  approvedById     String? // null only when autoDispatched
+  autoDispatched   Boolean   @default(false)
+  scheduledFor     DateTime?
+  completedAt      DateTime?
+  completionNote   String?
+  costUsd          Decimal?  @db.Decimal(10, 2) // actual cost, if reported
+  estimatedCostUsd Decimal?  @db.Decimal(10, 2) // hourly rate x estimated hours at dispatch time
+  matchReason      String? // why this vendor was suggested
+  createdAt        DateTime  @default(now())
 
   workOrder  WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   vendor     Vendor    @relation(fields: [vendorId], references: [id])

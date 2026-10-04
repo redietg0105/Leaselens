@@ -35,6 +35,15 @@ LeaseLens is an early-stage PropTech startup. Pilot customer: Capitol Residentia
    instructions (call 911 / gas utility for danger) and creates an on-call notification.
 3. **Vendor matching**: score = trade match (required) + availability + past first-time-fix rate − cost.
    Show top 3 with reasons; coordinator approves. Routine jobs under `AUTO_DISPATCH_LIMIT_USD` may auto-dispatch.
+   Implemented as: score = available 40 + first-time-fix × 40 − relative cost × 20; estimated cost = hourly
+   rate × typical hours per trade (Plumbing 2, Electrical 2, HVAC 2.5, Appliance 1.5, Pest 1, Structural 3,
+   Locks 1, Other 2). Auto-dispatch only when the job is TRIAGED + ROUTINE, valid AI confidence ≥ 0.8, no
+   emergency rule, the best vendor is available and its estimate is below the limit (0 = off); every decision
+   on a routine job is audit-logged (`dispatch.auto` / `dispatch.auto.skipped`).
+   Overrides: coordinators/managers change category/urgency with a reason; each override is a new
+   TriageResult row (`model: human`) and an audit entry, with the actor from the session. Lowering an
+   EMERGENCY needs a 20+ character reason and explicit confirmation, is logged as
+   `triage.override.emergency-lowered` and alerts on-call.
 4. **Recurring-issue detection**: embed each request (gemini-embedding-001, 768 dims, pgvector);
    flag ≥ 3 similar requests in the same building or stack within 90 days.
 5. **Lease abstraction**: upload PDF → Gemini reads the PDF directly → JSON of lease terms, each with
@@ -104,8 +113,13 @@ Seed: 4 buildings, 40 units, 1 user per role (tenant in Building A), 8 vendors a
 POST /auth/request-link · POST /auth/verify · POST /auth/logout · GET /me
 POST /work-orders (multipart: fields + up to 3 photos) · GET /work-orders/mine · GET /work-orders/:id ·
 GET /work-orders/:id/media/:mediaId · POST /work-orders/:id/answers
-GET /staff/queue · POST /work-orders/:id/override · GET /work-orders/:id/vendors · POST /work-orders/:id/dispatch
-GET /vendor/jobs · POST /vendor/jobs/:id/complete
+GET /staff/queue?urgency=&status= · GET /staff/work-orders/:id · POST /work-orders/:id/override ·
+GET /work-orders/:id/vendors · POST /work-orders/:id/dispatch
+GET /vendor/jobs · GET /vendor/jobs/:id · POST /vendor/jobs/:id/complete (multipart: note + optional photo)
+
+Web areas: `/tenant/*` (TENANT), `/vendor/*` (VENDOR, lands on `/vendor/jobs`), `/staff/*` (COORDINATOR,
+LEASING, MANAGER; the queue is for COORDINATOR and MANAGER). A user opening another role's area is redirected
+to their own.
 POST /leases · GET /leases/:id/terms · POST /leases/:id/terms/:field/verify · POST /leases/ask
 GET /alerts · GET /dashboard
 

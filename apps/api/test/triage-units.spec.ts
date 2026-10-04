@@ -309,3 +309,21 @@ describe('emergency rules — separate texts do not combine', () => {
     expect(matchEmergencyRule(['The bedroom ceiling is bulging', 'Kitchen faucet drips constantly'], WINTER)).toBeNull();
   });
 });
+
+describe('summaryForVendor', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { summaryForVendor } = require('../src/triage/summary');
+  const output = { category: 'PLUMBING', subIssue: 'Leak', urgency: 'ROUTINE', confidence: 0.9, missingInfo: [], followUpQuestionIds: [], summaryForVendor: 'Fix the leak.' };
+  it('reads live triage rows ({ raw: text }) and older rows (the output object)', () => {
+    expect(summaryForVendor([{ valid: true, model: 'gemini', rawJson: { raw: JSON.stringify(output), error: null } }])).toBe('Fix the leak.');
+    expect(summaryForVendor([{ valid: true, model: 'seed', rawJson: output }])).toBe('Fix the leak.');
+  });
+  it('skips human overrides and invalid runs', () => {
+    expect(summaryForVendor([
+      { valid: true, model: 'human', rawJson: { before: {}, after: {} } },
+      { valid: false, model: 'gemini', rawJson: { raw: 'nope', error: 'Invalid JSON' } },
+      { valid: true, model: 'gemini', rawJson: { raw: JSON.stringify(output) } },
+    ])).toBe('Fix the leak.');
+    expect(summaryForVendor([])).toBeNull();
+  });
+});

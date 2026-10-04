@@ -93,6 +93,24 @@ out in 4 of 5 calls on 2026-10-02. Swap them in `.env` if that changes.
 that have been waiting more than a minute (set `TRIAGE_SWEEP="off"` to disable that). To triage one request
 by hand: `npm run triage:once -w @leaselens/api -- <workOrderId> --rerun`.
 
+## Staff queue and vendor dispatch
+
+- **Coordinators and managers** (`coordinator@` / `manager@leaselens.test`) land on `/staff`: open requests,
+  emergencies first, then urgent, then not-yet-triaged, then routine — oldest first in each group. Filter by
+  urgency and status. A request page shows photos, the tenant's answers, the AI's summary for the vendor, the
+  matched emergency rule, the full triage history (AI runs and human changes) and any dispatch.
+- **Override**: change category or urgency with a reason. Saved as a new triage history entry and in the audit
+  log; the coordinator is always taken from the session. Lowering an emergency needs a longer reason, a
+  confirmation tick, and alerts on-call.
+- **Dispatch**: the top 3 vendors with the right trade are suggested with a reason and an estimated cost
+  (hourly rate × typical hours for the trade); **Approve** creates the dispatch. Routine, confidently triaged
+  jobs estimated below `AUTO_DISPATCH_LIMIT_USD` are sent automatically right after AI triage — shown as
+  "Sent automatically" / "auto" and logged as `dispatch.auto` (skips are logged as `dispatch.auto.skipped`).
+- **Vendors** (`vendor@leaselens.test`, Capital Flow Plumbing) land on `/vendor/jobs` and see only their own
+  jobs: summary, photos, unit and address, permission to enter, access notes. **Mark complete** takes a note
+  and an optional photo (same checks as tenant photos); the tenant then sees "Completed".
+- Dispatches and completions write a row to `notifications` and log it in the API terminal.
+
 ## Troubleshooting
 
 - **"Too many requests" when signing in** — request-link allows 5 requests per IP per 15 minutes

@@ -226,3 +226,50 @@ an unused port, then a stub API brought up): 8/8 checks — redirect to /unavail
 `next=//evil.example` stays on site, no JS errors.
 
 **Time spent:** ~45 min
+
+## 2026-10-03 — Session 9: staff triage queue, overrides, vendor dispatch, vendor jobs
+
+**Prompt:** Build the staff triage queue and vendor dispatch from SPEC §3.3: /staff queue for coordinators and
+managers (sorted EMERGENCY → URGENT → ROUTINE, oldest first; description, building/unit, AI category, urgency,
+confidence, status, age, photo count; urgency/status filters); staff request detail (photos, answers, vendor
+summary, emergency rule, triage history); override with required reason saved in TriageResult + audit (actor
+from the session; lowering an emergency needs a reason and is clearly logged); top-3 vendor matching with
+reasons and one-click approve; auto-dispatch under AUTO_DISPATCH_LIMIT_USD, visible and logged; vendor job page
+(own jobs only, complete with note + optional photo; tenant sees Completed); notifications on dispatch and
+completion; tests. Decisions: estimated hours per trade, auto-dispatch conditions (confidence ≥ 0.8), unknown
+urgency between URGENT and ROUTINE, each override a new TriageResult row, lowering an emergency needs 20+
+characters + confirmation + on-call alert. Follow-up: vendors get their own `/vendor` area (land on
+`/vendor/jobs`; vendor ↔ tenant areas redirect), role-redirect tests updated.
+
+**Built**
+- Shared: `areaForRole` / `homePathForRole` (VENDOR → `/vendor/jobs`), `rankVendors`, `estimateCostUsd`,
+  `autoDispatchDecision`, queue/staff/vendor schemas, override/dispatch/complete schemas.
+- Migration `dispatch_estimate_and_reason` (`Dispatch.estimatedCostUsd`, `matchReason`).
+- API: `StaffModule` (queue, staff detail, override), `DispatchModule` (matches, approve, auto-dispatch,
+  vendor jobs + complete), `NotificationsModule`. Triage runs auto-dispatch after TRIAGED and no longer
+  overwrites a request a coordinator changed while the AI was running (kept as `triage.ai.stale`).
+  Photo route allows vendors only for jobs dispatched to them. Reusable `PhotoUpload(field, max)` interceptor.
+- Web: `/staff` queue (table on desktop, cards on phones, filters, empty/loading/error),
+  `/staff/work-orders/[id]` (details, history, override form with emergency-lowering safeguard, vendor panel),
+  `/vendor/jobs` + `/vendor/jobs/[id]` (phone-first, complete form with photo), tenant "Completed" note.
+  Area layouts redirect a wrong-role user on the server before anything renders.
+- Seed: work orders now store their emergency rule; 3 seeded rows in the dev DB updated to match.
+- Tests: 250 passing (new: dispatch-units 26, staff e2e 25, vendor e2e 13, summary + seed checks).
+  Mutation checks: removing the vendor ownership check fails the cross-vendor test; recording no override
+  actor fails the session test (a body `overriddenById` is already dropped by the Zod schema).
+
+**Browser (Edge, against Neon, no AI calls):** 26/26 checks as coordinator (desktop + 390px), vendor and tenant:
+queue order and filter, override saved with the session coordinator, emergency-lowering warning blocks without
+confirmation, only pest vendors suggested for a pest job, approve → DISPATCHED + notification, vendor sees only
+own job, other vendor's job "not found", vendor/tenant area redirects, complete with photo → 2 notifications,
+tenant sees "Completed". Seeded rows restored and test rows/photos removed afterwards.
+
+**Problems and fixes**
+- Dropdowns inside `<label>` got accessible names like "Urgency Emergency Urgent Routine" → explicit
+  `htmlFor`/`id` labels.
+- Seeded emergencies had no `WorkOrder.emergencyRule` (column added after seeding) → seed + 3 rows fixed.
+- Wrong-area redirects happened only after streaming started (header flashed) → layouts redirect first.
+- Seed rows store AI output directly and record overrides on the AI row → AI vs human rows are now told
+  apart by `model === "human"`, and the vendor summary reads both formats.
+
+**Time spent:** ~3 h

@@ -114,3 +114,13 @@ describe('seed data', () => {
     for (const m of data.media) expect(wos.has(m.workOrderId)).toBe(true);
   });
 });
+
+describe('seed emergencies', () => {
+  it('store the matched emergency rule on the work order itself', () => {
+    const data = buildSeedData(new Date('2026-10-01T12:00:00Z'));
+    for (const w of data.workOrders.filter((x) => x.urgency === 'EMERGENCY')) {
+      expect(w.emergencyRule).toBe(data.triageResults.find((t) => t.workOrderId === w.id)!.emergencyRule);
+      expect(w.emergencyRule).toBeTruthy();
+    }
+  });
+});

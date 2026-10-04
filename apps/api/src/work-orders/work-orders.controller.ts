@@ -50,7 +50,8 @@ export class WorkOrdersController {
     return this.workOrders.submitAnswers(user, id, parseBody(SubmitAnswersSchema, body));
   }
 
-  @Roles('TENANT', 'COORDINATOR', 'MANAGER')
+  /** Tenants: own requests. Vendors: jobs dispatched to them. Coordinators/managers: any. */
+  @Roles('TENANT', 'VENDOR', 'COORDINATOR', 'MANAGER')
   @Get(':id/media/:mediaId')
   async photo(
     @CurrentUser() user: AuthUser,

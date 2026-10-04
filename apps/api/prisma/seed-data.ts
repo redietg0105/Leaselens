@@ -43,6 +43,7 @@ export interface SeedData {
     status: WorkOrderStatus;
     urgency: Urgency | null;
     category: Category | null;
+    emergencyRule: string | null;
     createdAt: Date;
     slaDueAt: Date | null;
   }[];
@@ -173,6 +174,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
       status: w.status,
       urgency: w.urgency,
       category: w.category,
+      emergencyRule: w.triage?.emergencyRule ?? null,
       createdAt,
       slaDueAt: sla(createdAt, w.urgency),
     };

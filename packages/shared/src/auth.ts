@@ -31,11 +31,19 @@ export type Me = z.infer<typeof MeSchema>;
 
 export const VerifyLinkResponseSchema = z.object({
   user: MeSchema,
-  redirectTo: z.enum(['/tenant', '/staff']),
+  redirectTo: z.enum(['/tenant', '/staff', '/vendor/jobs']),
 });
 export type VerifyLinkResponse = z.infer<typeof VerifyLinkResponseSchema>;
 
-/** Tenants and vendors use the tenant portal; everyone else uses the staff app. */
-export function homePathForRole(role: Role): '/tenant' | '/staff' {
-  return role === 'TENANT' || role === 'VENDOR' ? '/tenant' : '/staff';
+export type Area = '/tenant' | '/vendor' | '/staff';
+
+/** Each role has its own area of the web app: tenants, vendors, or staff. */
+export function areaForRole(role: Role): Area {
+  return role === 'TENANT' ? '/tenant' : role === 'VENDOR' ? '/vendor' : '/staff';
+}
+
+/** Where a user lands after signing in. */
+export function homePathForRole(role: Role): '/tenant' | '/staff' | '/vendor/jobs' {
+  const area = areaForRole(role);
+  return area === '/vendor' ? '/vendor/jobs' : area;
 }
