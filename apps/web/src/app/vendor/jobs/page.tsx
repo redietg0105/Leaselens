@@ -49,12 +49,12 @@ function JobList({
       {jobs.length === 0 ? (
         <p className="text-sm text-muted-foreground">{empty}</p>
       ) : (
-        <ul className="divide-y rounded-lg border">
+        <ul className="divide-y overflow-hidden rounded-lg border">
           {jobs.map((j) => (
             <li key={j.id}>
               <Link
                 href={`/vendor/jobs/${j.id}`}
-                className="flex items-center gap-3 px-4 py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+                className="flex items-center gap-3 px-4 py-3 outline-none hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
               >
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="line-clamp-2 text-sm font-medium break-words">{j.summary}</p>
