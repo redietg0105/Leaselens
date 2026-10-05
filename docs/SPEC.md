@@ -43,7 +43,8 @@ LeaseLens is an early-stage PropTech startup. Pilot customer: Capitol Residentia
    Overrides: coordinators/managers change category/urgency with a reason; each override is a new
    TriageResult row (`model: human`) and an audit entry, with the actor from the session. Lowering an
    EMERGENCY needs a 20+ character reason and explicit confirmation, is logged as
-   `triage.override.emergency-lowered` and alerts on-call.
+   `triage.override.emergency-lowered` and alerts on-call. Once overridden, the queue shows
+   "Changed by staff" instead of the AI confidence.
 4. **Recurring-issue detection**: embed each request (gemini-embedding-001, 768 dims, pgvector);
    flag ≥ 3 similar requests in the same building or stack within 90 days.
 5. **Lease abstraction**: upload PDF → Gemini reads the PDF directly → JSON of lease terms, each with
@@ -62,6 +63,7 @@ LeaseLens is an early-stage PropTech startup. Pilot customer: Capitol Residentia
 - AI recommends, people decide. Every dispatch above the limit and every lease term needs human approval.
 - Never send tenant names, emails, phones or demographics to the model — only issue text, photos, unit type.
 - Store model name + prompt version + raw AI output + any human override for every AI decision (audit_log).
+  The model name is the one that produced the stored result or error (the fallback, if it was used).
 - Lease answers without a citation are rejected.
 
 ## 5. Tech stack (local MVP)

@@ -373,3 +373,31 @@ the primary model name even when the error came from the fallback model.
   browsers were left to expire.
 
 **Time spent:** ~5 h
+
+## 2026-10-05 — Session 13: fixes from the checklist run
+
+**Prompt:** "Push the checklist commit. Then fix these bugs, one at a time, with a test for each where
+possible": KB-1 focus on tenant/vendor list rows, RS-8 staff queue scrolling sideways at 768 px, SI-13 "Use a
+different email" keeping the old email, the history naming the primary model when the fallback failed, and the
+queue showing the AI confidence after a staff override. "Re-run only the checklist items related to these
+fixes, update their results, run npm run check, then commit and push."
+
+**Built** (one commit per fix)
+- KB-1: list rows get the same focus ring as buttons (inset, clipped to the rounded list).
+- RS-8: cause was the sr-only "Photos" header — absolutely positioned, and its scroll box wasn't positioned, so
+  it escaped the box and widened the page. The box is now `relative`; a wide table scrolls inside it.
+- SI-13: "Use a different email" clears the field and focuses it.
+- Model name: `TriageModelRequest.onAttempt` reports each model tried; triage records the last one, so a failed
+  or timed-out fallback is logged under the fallback's name. 3 new tests (2 fail without the fix).
+- "Changed by staff": queue items carry `overridden` (any human override row); table and phone cards show
+  "Changed by staff" instead of the AI confidence. 1 new test (fails without the fix). SPEC updated.
+
+**Checks:** web fixes have no test runner, so they were checked in the browser: re-ran KB-1, RS-4, RS-7, RS-8,
+SI-13, SQ-3, SQ-8, OV-1 — all Pass. Checklist now 299 Pass, 0 Fail, 5 Manual. One temporary "QA:" request used
+for the override check was deleted afterwards.
+
+**Problem and fix:** `npm run check` failed 2 auth tests because Prisma Client loads apps/api/.env on import,
+so the local DEMO_MODE="on" leaked into the tests. A Jest setup file now sets DEMO_MODE="off" before anything
+loads (demo-mode tests turn it on themselves). npm run check: typecheck, lint, 289 tests pass.
+
+**Time spent:** ~1 h

@@ -90,7 +90,7 @@ If you see "Too many attempts", restart the API to reset the counter.
 | [x] | SI-10 | Script tag | `<script>alert(1)</script>@x.com` | "Enter a valid email address."; no alert box | Pass — "Enter a valid email address."; alert box: false (QA copy) |
 | [x] | SI-11 | SQL | `' OR 1=1 --@x.com` | "Enter a valid email address." (or the normal message); no error page, nobody signed in | Pass — Shows: "Enter a valid email address."; nobody signed in (QA copy) |
 | [x] | SI-12 | Loading state | Click the button and watch | Shows a spinner and "Sending link…" while waiting | Pass — Spinner + "Sending link…" while waiting: true (QA copy) |
-| [x] | SI-13 | "Use a different email" | After SI-2, click it | Back to the empty form | **Fail** — Returns to the form, but the Email field still contains "manager@leaselens.test" instead of being empty (QA copy) |
+| [x] | SI-13 | "Use a different email" | After SI-2, click it | Back to the empty form | Pass — Re-tested after the fix: back to the form with the Email field empty ("") and focused (true); typing goes straight into it |
 | [x] | SI-14 | Enter key submits | Type an email, press Enter | Same as clicking the button | Pass — Enter key submits the form (QA copy) |
 | [x] | SI-15 | Rate limit | Request 6 links within 15 min | 6th shows "Too many attempts. Please wait a few minutes and try again." | Pass — Requests 1–6: ok, ok, ok, ok, ok, 429; 6th shows "Too many attempts…" (QA copy) |
 | [x] | SI-16 | Already signed in | Signed in as coordinator, open `/signin` | Redirected to `/staff` | Pass — Signed-in coordinator opening /signin → /staff |
@@ -340,12 +340,12 @@ Sign in as `coordinator@leaselens.test` (Riley Castellan). Repeat the key items 
 |---|---|---|---|---|---|
 | [x] | SQ-1 | Lands here | Sign in | `/staff`, "Triage queue", count of open requests | Pass — Landed on /staff; "31 open requests"; Manager: same queue and request page (header: LeaseLens Morgan Pell Manager Sign out) |
 | [x] | SQ-2 | Order | Read the Urgency column | All **Emergency**, then **Urgent**, then **Not set**, then **Routine**; oldest first within each | Pass — 31 rows; order by urgency then oldest first holds: true |
-| [x] | SQ-3 | Columns | Desktop width | Urgency (+ siren icon if a rule matched), Request (description), Unit + building, Category, AI confidence, Status, Age, photo count | Pass — Columns: Urgency / Request / Unit / Category / AI confidence / Status / Age / Photos / +photos; siren icons: 12 |
+| [x] | SQ-3 | Columns | Desktop width | Urgency (+ siren icon if a rule matched), Request (description), Unit + building, Category, AI confidence, Status, Age, photo count | Pass — Re-tested after the "Changed by staff" fix. Columns: Urgency / Request / Unit / Category / AI confidence / Status / Age / Photos. AI confidence column shows 87% for an AI-triaged request and "Changed by staff" after a coordinator override |
 | [x] | SQ-4 | Statuses | Find each | "Needs review", "Needs tenant info", "Waiting for AI", "Triaged", "Dispatched" (+ "auto" tag if sent automatically) | Pass — Statuses seen: Triaged, Dispatched, Needs review, Needs tenant info, Waiting for AI |
 | [x] | SQ-5 | Highlights | Look at rows | Emergencies tinted red, Needs review tinted amber | Pass — Red-tinted rows: 13; amber (needs review): 3 |
 | [x] | SQ-6 | Completed hidden | Complete a job (VC-10) | It disappears from the queue | Pass — 4 completed requests (incl. QA ones completed by the vendor test) — none in the queue |
 | [x] | SQ-7 | Open a request | Click a description | Staff request page | Pass — Description link → staff request page |
-| [x] | SQ-8 | Phone layout | 390 px wide | Cards instead of a table; no sideways scroll | Pass — 390 px: 32 cards, table hidden, width 390 |
+| [x] | SQ-8 | Phone layout | 390 px wide | Cards instead of a table; no sideways scroll | Pass — Re-tested: 390 px shows cards; the overridden request's card says "Changed by staff", other cards still show "AI nn%" (11) |
 | [ ] | SQ-9 | Empty state | When nothing is open | "No open requests" | Manual — Not tested: needs a database with no open requests ("No open requests"); the automated API test covers the empty queue |
 | [x] | SQ-10 | Loading state | Slow 3G | Grey placeholders | Pass — API slowed by 3 s (QA copy): placeholders on full page load true, on clicking a link to it true; then the page (/staff) |
 
@@ -382,7 +382,7 @@ Sign in as `coordinator@leaselens.test` (Riley Castellan). Repeat the key items 
 
 | ✓ | ID | What to test | Steps / input | Expected result | Result / notes |
 |---|---|---|---|---|---|
-| [x] | OV-1 | Change urgency | Urgent → Routine, reason `Tenant confirmed it's a slow drip` → **Save change** | "Saving…"; urgency updates; history shows "Changed by Riley Castellan" + reason | Pass — Urgency URGENT → ROUTINE; history "Changed by Riley Castellan" + reason |
+| [x] | OV-1 | Change urgency | Urgent → Routine, reason `Tenant confirmed it's a slow drip` → **Save change** | "Saving…"; urgency updates; history shows "Changed by Riley Castellan" + reason | Pass — Re-tested: override saved (Plumbing → Appliances) with "Changed by Riley Castellan" + reason in history; the queue now shows "Changed by staff" instead of the AI's 87% confidence |
 | [x] | OV-2 | Change category | Category → another trade + reason | Category updates; suggested vendors change to the new trade | Pass — Category Other → Electrical; vendor list updated: 1. Rivermark Electric (first run picked Structural, which the request already had, so the form correctly said nothing changed) |
 | [x] | OV-3 | Both at once | Change both | Both saved in one history entry | Pass — Both saved in one history entry |
 | [x] | OV-4 | No reason | Change urgency, empty reason | "Give a reason of at least 10 characters." | Pass — No reason → "Give a reason of at least 10 characters." |
@@ -477,11 +477,11 @@ Use DevTools device mode (Ctrl+Shift+M). Check: nothing cut off, **no sideways s
 | [x] | RS-1 | Landing `/` | Cards stacked | Two cards side by side | Two cards centred | Pass — 390: stacked, overflow 0; 768: side by side, centred, overflow 0; 1280: side by side, centred, overflow 0 |
 | [x] | RS-2 | Sign-in (+ demo box) | Full-width form | Centred | Centred | Pass — 390: email box 352 px wide, centred true, demo box true, overflow 0; 768: email box 352 px wide, centred true, demo box true, overflow 0; 1280: email box 352 px wide, centred true, demo box true, overflow 0 |
 | [x] | RS-3 | Confirm sign-in | Full-width button | Centred | Centred | Pass — 390: button 352 px, centred true, overflow 0; 768: button 352 px, centred true, overflow 0; 1280: button 352 px, centred true, overflow 0 (tokens not used) |
-| [x] | RS-4 | My requests | One column, header fits name + Sign out | Same, wider | Max width ~2xl | Pass — 390: Sign out inside screen true, list 390 px, overflow 0; 768: Sign out inside screen true, list 672 px, overflow 0; 1280: Sign out inside screen true, list 672 px, overflow 0 |
+| [x] | RS-4 | My requests | One column, header fits name + Sign out | Same, wider | Max width ~2xl | Pass — Re-tested after the focus-ring change: 390: 4 rows, Sign out inside screen, list 390 px, overflow 0; 768: 4 rows, Sign out inside screen, list 672 px, overflow 0; 1280: 4 rows, Sign out inside screen, list 672 px, overflow 0 |
 | [x] | RS-5 | New request | Photos in 3 columns, full-width buttons | Same | Same | Pass — 390: 3 photo columns, Send 358/358 px, overflow 0 (nothing sent); 768: 3 photo columns, Send 624/624 px, overflow 0 (nothing sent); 1280: 3 photo columns, Send 624/624 px, overflow 0 (nothing sent) |
 | [x] | RS-6 | Request detail (incl. emergency, questions, completed) | Long words wrap; photos 2 per row | Photos 3 per row | Same | Pass — 390: photos 2/row, completed+photos overflow 0, emergency overflow 0, long text overflow 0; 768: photos 3/row, completed+photos overflow 0, emergency overflow 0, long text overflow 0; 1280: photos 3/row, completed+photos overflow 0, emergency overflow 0, long text overflow 0 |
-| [x] | RS-7 | Vendor jobs + job page | One column | Same | Same | Pass — 390: list overflow 0, job overflow 0; 768: list overflow 0, job overflow 0; 1280: list overflow 0, job overflow 0; single column at all sizes |
-| [x] | RS-8 | Staff queue | Cards | **Table** from 768 px | Table | **Fail** — 390: cards; 768: table but the whole page scrolls sideways by 18 px (the table is 815 px wide in a 768 px window); 1280: table, no overflow |
+| [x] | RS-7 | Vendor jobs + job page | One column | Same | Same | Pass — Re-tested after the focus-ring change: 390: list overflow 0, job overflow 0; 768: list overflow 0, job overflow 0; 1280: list overflow 0, job overflow 0; single column at all sizes |
+| [x] | RS-8 | Staff queue | Cards | **Table** from 768 px | Table | Pass — Re-tested after the fix: 390: cards, page overflow 0; 768: table (box 775/718 px scroll/visible), page overflow 0; 1280: table (box 1102/1102 px scroll/visible), page overflow 0 — a wider table scrolls inside its own box |
 | [x] | RS-9 | Staff request page | Vendors + override below details | Same | Side panel on the right (≥ 1024 px) | Pass — 390: vendors below details, overflow 0; 768: vendors below details, overflow 0; 1024: vendors side panel on the right, overflow 0; 1280: vendors side panel on the right, overflow 0 |
 | [x] | RS-10 | Reconnecting / not-found / error pages | Centred, readable | Same | Same | Pass — 390 /tenant/requests/xyz: "Request not found" centred true, overflow 0; 390 /no-such-page: "Page not found" centred true, overflow 0; 768 /tenant/requests/xyz: "Request not found" centred true, overflow 0; 768 /no-such-page: "Page not found" centred true, overflow 0; 1280 /tenant/requests/xyz: "Request not found" centred true… |
 | [x] | RS-11 | Very long name/email in header | Edit a user's name to 60 chars in Prisma Studio | Name truncated with "…", no overflow | | Pass — 60-char name at 390 px: {"ellipsis":true,"clipped":true,"w":157}, Sign out visible true, overflow 0 (name restored) |
@@ -494,7 +494,7 @@ Unplug/ignore the mouse. Use Tab / Shift+Tab, Enter, Space and arrow keys.
 
 | ✓ | ID | What to test | Expected result | Result / notes |
 |---|---|---|---|---|
-| [x] | KB-1 | Focus is visible | Every focused button, link and field shows a clear ring | **Fail** — Most controls show a clear ring, but rows in the tenant "My requests" list (27/27) and the vendor "My jobs" list (8/8) have outline-none and only a faint 50% grey background when focused — hard to see. Staff table links, buttons and fields have rings |
+| [x] | KB-1 | Focus is visible | Every focused button, link and field shows a clear ring | Pass — Re-tested after the fix: tabbed through 7 tenant, vendor and staff pages (247 focus stops) — every focused link, button and field, including the "My requests" and "My jobs" rows, shows a ring |
 | [x] | KB-2 | Landing | Tab to "I live here" / "I work here", Enter opens them | Pass — I live here found true → /signin; I work here found true → /signin |
 | [x] | KB-3 | Sign-in | Tab to Email, type, Enter sends; demo buttons reachable and work with Enter/Space | Pass — Email reachable by Tab, Enter sent it: "Sign in to LeaseLens Enter your email and we'll send you a sign-in link. No password needed. Email Sending link… Demo accounts Demo mode is "; demo button "button[button]: Tenant" reachable true, Space → /signin |
 | [x] | KB-4 | Confirm sign-in | Tab to **Sign in to LeaseLens**, Enter signs in | Pass — Tab reached the button in 1 presses; Enter → http://localhost:3000/tenant |
@@ -595,11 +595,12 @@ issued in the database, so the rate limits were only used where they were being 
 
 | Pass | Fail | Manual | Total |
 |---|---|---|---|
-| 296 | 3 | 5 | 304 |
+| 299 | 0 | 5 | 304 |
 
-**Fails:** KB-1 (focus barely visible on tenant/vendor list rows), RS-8 (staff queue scrolls sideways at
-768 px), SI-13 ("Use a different email" keeps the old email).
-**Also seen (not a checklist item):** when both Gemini models fail, the history row names the primary model
-even though the stored error came from the fallback model.
+**Fixed the same day** and re-tested (KB-1, RS-4, RS-7, RS-8, SI-13, SQ-3, SQ-8, OV-1 — all Pass): focus ring on
+tenant/vendor list rows (KB-1), staff queue no longer scrolls the page sideways at 768 px (RS-8), "Use a different
+email" clears and focuses the field (SI-13). Also fixed (not checklist items): a failed Gemini fallback is recorded
+under the fallback's model name, and the queue shows "Changed by staff" instead of the AI confidence after an
+override.
 **Manual:** NR-17 (phone camera), SQ-9 (needs an empty database), VP-4 (needs a trade no vendor has),
 AI-7 (needs a real rate limit), AI-8 (needs the network off).
