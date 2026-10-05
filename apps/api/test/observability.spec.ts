@@ -28,6 +28,25 @@ describe('request ids', () => {
     expect(res.body).toEqual({ statusCode: 401, message: 'Please sign in.', requestId: res.headers['x-request-id'] });
   });
 
+  it('a body that is too large gets 413 with a plain message (not a 500), and a request id', async () => {
+    const res = await http()
+      .post('/auth/verify')
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify({ token: 'a'.repeat(200_000) }))
+      .expect(413);
+    expect(res.body).toEqual({ statusCode: 413, message: 'The request is too large.', requestId: res.headers['x-request-id'] });
+    expect(res.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('broken JSON gets 400 without echoing the parser message', async () => {
+    const res = await http().post('/auth/verify').set('Content-Type', 'application/json').send('{bad').expect(400);
+    expect(res.body).toEqual({
+      statusCode: 400,
+      message: 'The request could not be read. Please try again.',
+      requestId: res.headers['x-request-id'],
+    });
+  });
+
   it('keeps a safe incoming request id and replaces an unsafe one', async () => {
     const kept = await http().get('/health').set('X-Request-Id', 'proxy-abc-12345');
     expect(kept.headers['x-request-id']).toBe('proxy-abc-12345');
