@@ -289,6 +289,28 @@ describe('GeminiTriageModel fallback', () => {
     expect(calls).toEqual([model.primaryModel, DEFAULT_FALLBACK_MODEL]);
   });
 
+  it('reports every model it tries, so a failed fallback can be recorded under the right name', async () => {
+    const model = new GeminiTriageModel();
+    (model as unknown as { client: unknown }).client = {
+      models: {
+        generateContent: async () => {
+          throw new ApiError({ message: 'high demand', status: 503 });
+        },
+      },
+    };
+    const attempts: string[] = [];
+    await expect(
+      model.generate({
+        systemInstruction: 'x',
+        parts: [],
+        responseJsonSchema: {},
+        signal: new AbortController().signal,
+        onAttempt: (m) => attempts.push(m),
+      }),
+    ).rejects.toThrow('high demand');
+    expect(attempts).toEqual([model.primaryModel, DEFAULT_FALLBACK_MODEL]);
+  });
+
   it('does not retry other errors', async () => {
     const model = new GeminiTriageModel();
     (model as unknown as { client: unknown }).client = {

@@ -184,6 +184,31 @@ describe('AI triage', () => {
       expect((t.db.triageResults[0].rawJson as { error: string }).error).toContain('503');
     });
 
+    it('when the fallback model fails too, history and audit name the fallback (the model behind the stored error)', async () => {
+      await setup();
+      t.model.respond = async (req) => {
+        req.onAttempt?.('fake-fallback'); // the primary was busy; the fallback is tried and fails
+        throw new Error('503 high demand');
+      };
+      const res = await submit('Kitchen sink is slow to drain.');
+      await settled(res.body.id);
+      expect(t.db.triageResults[0]).toMatchObject({ valid: false, model: 'fake-fallback' });
+      expect((t.db.triageResults[0].rawJson as { error: string }).error).toContain('503 high demand');
+      const audit = t.db.auditLogs.find((a) => a.action === 'triage.failed');
+      expect(audit?.after).toMatchObject({ model: 'fake-fallback' });
+    });
+
+    it('a timeout while the fallback is running names the fallback', async () => {
+      await setup({ triageTimeoutMs: 100 });
+      t.model.respond = (req) => {
+        req.onAttempt?.('fake-fallback');
+        return new Promise<string>(() => undefined);
+      };
+      const res = await submit('Kitchen sink is slow to drain.');
+      await settled(res.body.id);
+      expect(t.db.triageResults[0]).toMatchObject({ model: 'fake-fallback', rawJson: { raw: null, error: 'Timeout after 100 ms' } });
+    });
+
     it('a timeout → NEEDS_REVIEW (timeout shortened for the test; the 25 s default is covered in triage-units)', async () => {
       await setup({ triageTimeoutMs: 100 });
       t.model.respond = () => new Promise<string>(() => undefined);

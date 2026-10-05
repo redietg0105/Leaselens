@@ -13,6 +13,8 @@ export interface TriageModelRequest {
   parts: PromptPart[];
   responseJsonSchema: unknown;
   signal: AbortSignal;
+  /** Called with each model just before it is tried, so a failure or timeout can name the model that caused it. */
+  onAttempt?: (model: string) => void;
 }
 
 export interface TriageModelResponse {
@@ -64,6 +66,7 @@ export class GeminiTriageModel extends TriageModel {
   }
 
   private async call(model: string, request: TriageModelRequest): Promise<TriageModelResponse> {
+    request.onAttempt?.(model);
     const response = await this.getClient().models.generateContent({
       model,
       contents: [{ role: 'user', parts: request.parts }],

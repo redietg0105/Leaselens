@@ -142,12 +142,19 @@ export class TriageService implements OnApplicationBootstrap {
     });
 
     let raw: string | null = null;
+    // The model that produced the stored result or error: the last one tried (the fallback, if it was used).
     let model = this.model.primaryModel;
     let output: TriageOutput | null = null;
     let error: string | null = null;
     try {
       const res = await withTimeout(this.timeoutMs, (signal) =>
-        this.model.generate({ systemInstruction: SYSTEM_INSTRUCTION, parts, responseJsonSchema: TRIAGE_JSON_SCHEMA, signal }),
+        this.model.generate({
+          systemInstruction: SYSTEM_INSTRUCTION,
+          parts,
+          responseJsonSchema: TRIAGE_JSON_SCHEMA,
+          signal,
+          onAttempt: (m) => (model = m),
+        }),
       );
       raw = res.text;
       model = res.model;

@@ -27,6 +27,7 @@ export class FakeTriageModel extends TriageModel {
 
   async generate(request: TriageModelRequest): Promise<TriageModelResponse> {
     this.requests.push(request);
+    request.onAttempt?.('fake-gemini');
     return { text: await this.respond(request), model: 'fake-gemini' };
   }
 
