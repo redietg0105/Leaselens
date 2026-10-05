@@ -20,6 +20,9 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "rootDir": ".",
+    "setupFiles": [
+      "<rootDir>/test/support/test-env.ts"
+    ],
     "testMatch": [
       "<rootDir>/test/**/*.spec.ts",
       "<rootDir>/src/**/*.spec.ts"
