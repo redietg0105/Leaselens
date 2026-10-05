@@ -57,7 +57,11 @@ export default async function StaffWorkOrderPage({ params }: { params: Promise<{
             <UrgencyBadge urgency={w.urgency} />
             <span className="text-sm font-medium">{STAFF_STATUS_LABEL[w.status]}</span>
             {w.category && <span className="text-sm text-muted-foreground">{CATEGORY_SHORT[w.category]}</span>}
-            {w.confidence !== null && <span className="text-sm text-muted-foreground">AI {Math.round(w.confidence * 100)}%</span>}
+            {w.overridden ? (
+              <span className="text-sm text-muted-foreground">Changed by staff</span>
+            ) : (
+              w.confidence !== null && <span className="text-sm text-muted-foreground">AI {Math.round(w.confidence * 100)}%</span>
+            )}
           </div>
           <h1 className="text-xl font-semibold tracking-tight break-words">{w.subIssue ?? "Maintenance request"}</h1>
           <p className="text-sm text-muted-foreground">

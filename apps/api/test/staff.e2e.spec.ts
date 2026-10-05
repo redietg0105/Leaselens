@@ -169,7 +169,7 @@ describe('Staff: queue, override, dispatch', () => {
       expect(detail).toMatchObject({ category: 'APPLIANCE', urgency: 'URGENT', summaryForVendor: VALID_ROUTINE.summaryForVendor });
     });
 
-    it('marks overridden requests in the queue, so the AI confidence is not shown as if the AI chose the new values', async () => {
+    it('marks overridden requests in the queue and on the request page, so the AI confidence is not shown as if the AI chose the new values', async () => {
       await setup();
       const w = wo({ category: 'PLUMBING', urgency: 'ROUTINE', status: 'TRIAGED' });
       t.db.triageResults.push({
@@ -179,10 +179,13 @@ describe('Staff: queue, override, dispatch', () => {
       });
       const row = async () =>
         (await http().get('/staff/queue').set('Cookie', coordinator.cookie).expect(200)).body.find((i: { id: string }) => i.id === w.id);
+      const detail = async () => (await http().get(`/staff/work-orders/${w.id}`).set('Cookie', coordinator.cookie).expect(200)).body;
       expect(await row()).toMatchObject({ overridden: false, confidence: 0.9 });
+      expect(await detail()).toMatchObject({ overridden: false, confidence: 0.9 });
 
       await http().post(`/work-orders/${w.id}/override`).set('Cookie', coordinator.cookie).send({ category: 'APPLIANCE', reason: 'It is the dishwasher hose' }).expect(200);
       expect(await row()).toMatchObject({ overridden: true, category: 'APPLIANCE' });
+      expect(await detail()).toMatchObject({ overridden: true, category: 'APPLIANCE' });
     });
 
     it('requires a reason and an actual change', async () => {

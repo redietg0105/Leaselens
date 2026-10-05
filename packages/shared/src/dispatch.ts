@@ -221,6 +221,8 @@ export const StaffWorkOrderSchema = z.object({
   category: CategorySchema.nullable(),
   urgency: UrgencySchema.nullable(),
   confidence: z.number().nullable(),
+  /** A person has changed the category or urgency (shown as "Changed by staff" instead of the AI confidence). */
+  overridden: z.boolean(),
   emergencyRule: EmergencyRuleIdSchema.nullable(),
   subIssue: z.string().nullable(),
   summaryForVendor: z.string().nullable(),

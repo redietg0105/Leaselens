@@ -110,6 +110,7 @@ export class StaffService {
       category: w.category,
       urgency: w.urgency,
       confidence: latestAi?.confidence ?? null,
+      overridden: w.triageResults.some((r) => !isAiRow(r)),
       emergencyRule: (w.emergencyRule as EmergencyRuleId | null) ?? null,
       subIssue: latestAi?.subIssue ?? null,
       summaryForVendor: summaryForVendor(w.triageResults),
