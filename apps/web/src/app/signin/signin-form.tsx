@@ -27,6 +27,8 @@ type State =
 export function SignInForm({ demoAccounts }: { demoAccounts: readonly DemoAccount[] | null }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
+  // True after "Use a different email": the form comes back empty with the cursor in the email field.
+  const [startOver, setStartOver] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,7 +49,15 @@ export function SignInForm({ demoAccounts }: { demoAccounts: readonly DemoAccoun
           <MailCheck aria-hidden className="mx-auto size-8 text-primary" />
           <h2 className="text-lg font-medium">Check your email</h2>
           <p className="text-sm text-muted-foreground">{REQUEST_LINK_MESSAGE}</p>
-          <Button variant="outline" className="h-11 w-full" onClick={() => setState({ kind: "idle" })}>
+          <Button
+            variant="outline"
+            className="h-11 w-full"
+            onClick={() => {
+              setEmail("");
+              setStartOver(true);
+              setState({ kind: "idle" });
+            }}
+          >
             Use a different email
           </Button>
         </div>
@@ -71,6 +81,7 @@ export function SignInForm({ demoAccounts }: { demoAccounts: readonly DemoAccoun
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoFocus={startOver}
             disabled={sending}
             aria-invalid={state.kind === "error"}
             aria-describedby={state.kind === "error" ? "email-error" : undefined}
