@@ -132,8 +132,9 @@ export default async function StaffHome({
               </li>
             ))}
           </ul>
-          {/* Desktop: table */}
-          <div className="hidden overflow-x-auto rounded-lg border md:block">
+          {/* Desktop: table. `relative` keeps the sr-only header text inside the scroll box, so a wide
+              table scrolls here instead of making the whole page scroll sideways. */}
+          <div className="relative hidden overflow-x-auto rounded-lg border md:block">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                 <tr>
