@@ -10,10 +10,8 @@ import {
   DESCRIPTION_MAX,
   ENTRY_PERMISSION_LABEL,
   EntryPermissionSchema,
-  IMAGE_SNIFF_BYTES,
   MAX_PHOTOS,
   PHOTO_ERRORS,
-  photoProblem,
   type EntryPermission,
   type WorkOrderDetail,
 } from "@leaselens/shared";
@@ -21,16 +19,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiPost, ApiError } from "@/lib/api";
+import { checkPhotoFile, photoKey } from "@/lib/photo-file";
 import { cn } from "@/lib/utils";
 
 type Photo = { key: string; file: File; previewUrl: string };
 type FieldErrors = Partial<Record<"description" | "entryPermission" | "accessNotes" | "photos", string>>;
-
-/** Same check the API runs: size, then the real type from the file's first bytes. */
-async function checkPhoto(file: File): Promise<string | null> {
-  const head = new Uint8Array(await file.slice(0, IMAGE_SNIFF_BYTES).arrayBuffer());
-  return photoProblem(file.size, head);
-}
 
 export function NewRequestForm() {
   const router = useRouter();
@@ -59,12 +52,12 @@ export function NewRequestForm() {
     let problem: string | null = picked.length > room ? PHOTO_ERRORS.tooMany : null;
     const accepted: Photo[] = [];
     for (const file of picked.slice(0, Math.max(room, 0))) {
-      const fileProblem = await checkPhoto(file);
+      const fileProblem = await checkPhotoFile(file);
       if (fileProblem) {
         problem = `${file.name}: ${fileProblem}`;
         continue;
       }
-      accepted.push({ key: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file) });
+      accepted.push({ key: photoKey(), file, previewUrl: URL.createObjectURL(file) });
     }
     setPhotos((prev) => [...prev, ...accepted]);
     setErrors((prev) => ({ ...prev, photos: problem ?? undefined }));

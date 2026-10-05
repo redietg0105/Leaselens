@@ -12,6 +12,7 @@ import {
 import { UrgencyBadge } from "@/components/urgency-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { apiUrl } from "@/lib/api";
+import { ApiPhoto } from "@/components/api-photo";
 import { formatDate, usd } from "@/lib/format";
 import { apiGet, requireRoles } from "@/lib/session";
 import { notFound } from "next/navigation";
@@ -36,8 +37,7 @@ export default async function StaffWorkOrderPage({ params }: { params: Promise<{
       {photos.map((p, i) => (
         <li key={p.id} className="overflow-hidden rounded-lg border bg-muted">
           <a href={apiUrl(p.url)} target="_blank" rel="noopener noreferrer" aria-label={`Open ${label} ${i + 1} full size`}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- served by the API with the session cookie */}
-            <img src={apiUrl(p.url)} alt={`${label} ${i + 1}`} loading="lazy" className="aspect-square size-full object-cover" />
+            <ApiPhoto src={apiUrl(p.url)} alt={`${label} ${i + 1}`} />
           </a>
         </li>
       ))}

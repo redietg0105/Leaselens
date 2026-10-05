@@ -12,6 +12,7 @@ import { EmergencyAlert } from "@/components/emergency-alert";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { apiUrl } from "@/lib/api";
+import { ApiPhoto } from "@/components/api-photo";
 import { formatDate } from "@/lib/format";
 import { apiGet, requireTenant } from "@/lib/session";
 import { FollowUpForm } from "./follow-up-form";
@@ -125,13 +126,7 @@ export default async function RequestDetailPage({
             {request.photos.map((photo, i) => (
               <li key={photo.id} className="overflow-hidden rounded-lg border bg-muted">
                 <a href={apiUrl(photo.url)} target="_blank" rel="noopener noreferrer" aria-label={`Open photo ${i + 1} full size`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- served by the API with the session cookie; next/image would fetch it without the cookie */}
-                  <img
-                    src={apiUrl(photo.url)}
-                    alt={`Photo ${i + 1} of the problem`}
-                    loading="lazy"
-                    className="aspect-square size-full object-cover"
-                  />
+                  <ApiPhoto src={apiUrl(photo.url)} alt={`Photo ${i + 1} of the problem`} />
                 </a>
               </li>
             ))}

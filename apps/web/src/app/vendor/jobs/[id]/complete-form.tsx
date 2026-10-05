@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ImagePlus, Loader2, X } from "lucide-react";
-import { ALLOWED_PHOTO_TYPES, CompleteJobSchema, IMAGE_SNIFF_BYTES, photoProblem } from "@leaselens/shared";
+import { ALLOWED_PHOTO_TYPES, CompleteJobSchema } from "@leaselens/shared";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiPost, ApiError } from "@/lib/api";
+import { checkPhotoFile } from "@/lib/photo-file";
 
 /** Mark a job complete with a note and an optional photo (same photo rules as tenants). */
 export function CompleteJobForm({ jobId }: { jobId: string }) {
@@ -28,8 +29,7 @@ export function CompleteJobForm({ jobId }: { jobId: string }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    const head = new Uint8Array(await file.slice(0, IMAGE_SNIFF_BYTES).arrayBuffer());
-    const problem = photoProblem(file.size, head);
+    const problem = await checkPhotoFile(file);
     setPhotoError(problem);
     if (!problem) setPhoto({ file, url: URL.createObjectURL(file) });
   }
