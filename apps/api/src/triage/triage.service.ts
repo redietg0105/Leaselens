@@ -9,6 +9,7 @@ import {
   type Urgency,
 } from '@leaselens/shared';
 import type { Prisma, WorkOrderStatus } from '@prisma/client';
+import { errorText } from '../common/error-text';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -66,7 +67,7 @@ export class TriageService implements OnApplicationBootstrap {
   /** Starts triage in the background. Never throws; the tenant never waits for it. */
   schedule(workOrderId: string): void {
     void this.run(workOrderId).catch((err: unknown) =>
-      this.logger.error(`Triage crashed for ${workOrderId}: ${err instanceof Error ? err.message : String(err)}`),
+      this.logger.error(`Triage crashed for ${workOrderId}: ${errorText(err)}`),
     );
   }
 
@@ -82,7 +83,7 @@ export class TriageService implements OnApplicationBootstrap {
       if (stuck.length) this.logger.log(`Re-running triage for ${stuck.length} waiting request(s)`);
       for (const { id } of stuck) this.schedule(id);
     } catch (err) {
-      this.logger.error(`Triage sweep failed: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.error(`Triage sweep failed: ${errorText(err)}`);
     }
   }
 
@@ -94,7 +95,7 @@ export class TriageService implements OnApplicationBootstrap {
       await this.triage(workOrderId);
     } catch (err) {
       // Last resort (e.g. database hiccup): never leave the request silently stuck.
-      this.logger.error(`Triage failed for ${workOrderId}: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.error(`Triage failed for ${workOrderId}: ${errorText(err)}`);
       await this.prisma.workOrder
         .update({ where: { id: workOrderId }, data: { status: 'NEEDS_REVIEW' } })
         .catch(() => undefined);
@@ -257,7 +258,7 @@ export class TriageService implements OnApplicationBootstrap {
     // Routine, confident, low-cost jobs may go straight to a vendor (logged either way).
     if (status === 'TRIAGED') {
       await this.dispatch.tryAutoDispatch(wo.id).catch((err: unknown) =>
-        this.logger.error(`Auto-dispatch failed for ${wo.id}: ${err instanceof Error ? err.message : String(err)}`),
+        this.logger.error(`Auto-dispatch failed for ${wo.id}: ${errorText(err)}`),
       );
     }
   }

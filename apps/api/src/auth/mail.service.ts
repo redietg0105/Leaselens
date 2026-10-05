@@ -7,8 +7,8 @@ export class MailService {
 
   async sendMagicLink(email: string, url: string): Promise<void> {
     if (process.env.NODE_ENV === 'production') {
-      // Never print a usable link in production logs.
-      this.logger.warn(`Email sending is not configured; sign-in link for ${email} was not sent.`);
+      // Never print a usable link — or the email address — in production logs.
+      this.logger.warn('Email sending is not configured; a sign-in link was not sent.');
       return;
     }
     this.logger.log(`Sign-in link for ${email} (valid 15 minutes, one use):\n\n    ${url}\n`);

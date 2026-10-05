@@ -2,8 +2,12 @@
  * Security hardening: cross-site writes, rate limits, demo-mode safeguards, personal data in logs,
  * and raw SQL.
  */
+import { Logger } from '@nestjs/common';
 import request from 'supertest';
+import { MailService } from '../src/auth/mail.service';
+import { errorText } from '../src/common/error-text';
 import { CROSS_SITE_MESSAGE } from '../src/common/same-origin';
+import { NotificationsService } from '../src/notifications/notifications.service';
 import { NEW_REQUESTS_PER_WINDOW } from '../src/work-orders/work-orders.controller';
 import { createTestApp, type TestApp } from './support/test-app';
 
@@ -41,6 +45,58 @@ describe('cross-site writes (CSRF defence in depth)', () => {
 
   it('never blocks reads', async () => {
     await http().get('/health').set('Origin', 'https://evil.example').set('Sec-Fetch-Site', 'cross-site').expect(200);
+  });
+});
+
+describe('personal data stays out of production logs', () => {
+  let t: TestApp;
+  let lines: string[];
+  const saved = process.env.NODE_ENV;
+  beforeEach(async () => {
+    t = await createTestApp();
+    lines = [];
+    const capture = (msg: unknown) => {
+      lines.push(String(msg));
+    };
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(capture);
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(capture);
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(capture);
+    process.env.NODE_ENV = 'production';
+  });
+  afterEach(async () => {
+    process.env.NODE_ENV = saved;
+    jest.restoreAllMocks();
+    await t.close();
+  });
+
+  it('notifications log only the channel and id, not the recipient or the tenant’s words', async () => {
+    const notifications = t.app.get(NotificationsService);
+    await notifications.send({ channel: 'EMAIL', to: 'jordan@example.test', body: 'Your request "call me at 202-555-0143" is completed.' });
+    await notifications.send({ channel: 'ONCALL', to: 'on-call coordinator', body: 'EMERGENCY (gas-smell): I smell gas, Jordan Ellery, unit 302' });
+    expect(lines).toHaveLength(2);
+    expect(lines.join('\n')).not.toMatch(/jordan|202-555|gas|Ellery/i);
+    expect(lines[0]).toMatch(/^\[EMAIL\] notification \S+ queued$/);
+    expect(t.db.notifications).toHaveLength(2); // still stored for delivery
+  });
+
+  it('the mail stand-in does not log the email address', async () => {
+    // The real service (the test app swaps in a fake that captures links).
+    await new MailService().sendMagicLink('jordan@example.test', 'http://localhost:3000/auth/verify?token=secret');
+    expect(lines).toEqual(['Email sending is not configured; a sign-in link was not sent.']);
+  });
+
+  it('Prisma errors are logged by class, code and reason only — never the values in the query', () => {
+    class PrismaClientValidationError extends Error {}
+    const err = new PrismaClientValidationError(
+      'Invalid `prisma.workOrder.create()` invocation:\n\n{\n  data: {\n    description: "Call Jordan at 202-555-0143"\n  }\n}\n\nArgument `unitId` is missing.',
+    );
+    expect(errorText(err, true)).toBe('PrismaClientValidationError: Argument `unitId` is missing.');
+    class PrismaClientKnownRequestError extends Error {
+      code = 'P2002';
+    }
+    expect(errorText(new PrismaClientKnownRequestError('Invalid call:\n\nUnique constraint failed on the fields: (`email`)'))).toBe(
+      'PrismaClientKnownRequestError P2002: Unique constraint failed on the fields: (`email`)',
+    );
   });
 });
 

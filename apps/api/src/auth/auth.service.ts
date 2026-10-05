@@ -8,6 +8,7 @@ import {
 import { isDemoMode } from '../config/demo';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from './auth.types';
+import { errorText } from '../common/error-text';
 import { MailService } from './mail.service';
 import { generateToken, hashToken } from './tokens';
 
@@ -41,7 +42,7 @@ export class AuthService {
    */
   async requestLink(email: string): Promise<{ demoSignInUrl?: string }> {
     const failed = (err: unknown) => {
-      this.logger.error(`Could not issue sign-in link: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.error(`Could not issue sign-in link: ${errorText(err)}`);
       return null;
     };
     if (isDemoMode()) {

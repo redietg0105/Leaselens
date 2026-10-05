@@ -8,6 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { errorText } from './common/error-text';
 
 /** Errors thrown by the JSON body parser before a route runs (they carry a `type` like "entity.too.large"). */
 interface BodyParserError {
@@ -68,11 +69,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return;
     }
 
-    this.logger.error(
-      `Unexpected error on ${req?.method} ${req?.path} (request ${requestId}): ${
-        exception instanceof Error ? exception.stack : String(exception)
-      }`,
-    );
+    this.logger.error(`Unexpected error on ${req?.method} ${req?.path} (request ${requestId}): ${errorText(exception, true)}`);
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       message: 'Something went wrong on our side. Please try again.',
