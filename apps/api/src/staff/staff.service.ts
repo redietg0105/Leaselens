@@ -12,6 +12,7 @@ import {
 } from '@leaselens/shared';
 import type { WorkOrderStatus } from '@prisma/client';
 import type { AuthUser } from '../auth/auth.types';
+import { CHANGED_BY_SOMEONE_ELSE } from '../common/messages';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { HUMAN_MODEL, isAiRow, summaryForVendor } from '../triage/summary';
@@ -190,6 +191,19 @@ export class StaffService {
     const after = { category, urgency, status };
 
     await this.prisma.$transaction(async (tx) => {
+      // Only if nobody changed the request since we read it: the emergency checks above were made on
+      // that version, so a parallel change (e.g. someone raising it to EMERGENCY) must not be overwritten.
+      const { count } = await tx.workOrder.updateMany({
+        where: { id: w.id, category: w.category, urgency: w.urgency, status: w.status },
+        data: {
+          category,
+          urgency,
+          status,
+          slaDueAt: urgency ? new Date(w.createdAt.getTime() + SLA_HOURS[urgency] * 3_600_000) : w.slaDueAt,
+        },
+      });
+      if (count !== 1) throw new ConflictException(CHANGED_BY_SOMEONE_ELSE);
+
       const result = await tx.triageResult.create({
         data: {
           workOrderId: w.id,
@@ -206,15 +220,6 @@ export class StaffService {
           overriddenById: user.id, // from the session, never from the request body
           overrideReason: input.reason,
           overriddenAt: now,
-        },
-      });
-      await tx.workOrder.update({
-        where: { id: w.id },
-        data: {
-          category,
-          urgency,
-          status,
-          slaDueAt: urgency ? new Date(w.createdAt.getTime() + SLA_HOURS[urgency] * 3_600_000) : w.slaDueAt,
         },
       });
       await tx.auditLog.create({

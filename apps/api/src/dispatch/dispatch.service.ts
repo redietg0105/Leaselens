@@ -20,6 +20,7 @@ import {
 } from '@leaselens/shared';
 import type { WorkOrderStatus } from '@prisma/client';
 import type { AuthUser } from '../auth/auth.types';
+import { CHANGED_BY_SOMEONE_ELSE } from '../common/messages';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { newPhotoKey, StorageService } from '../storage/storage.service';
@@ -77,6 +78,13 @@ export class DispatchService {
     if (!match) throw new BadRequestException(`That vendor doesn't do ${CATEGORY_SHORT[wo.category].toLowerCase()} work.`);
 
     await this.prisma.$transaction(async (tx) => {
+      // Only if the request is still as we read it — two approvals at once must not create two dispatches.
+      const { count } = await tx.workOrder.updateMany({
+        where: { id: wo.id, status: wo.status, category: wo.category },
+        data: { status: 'DISPATCHED' },
+      });
+      if (count !== 1) throw new ConflictException(CHANGED_BY_SOMEONE_ELSE);
+
       const dispatch = await tx.dispatch.create({
         data: {
           workOrderId: wo.id,
@@ -87,7 +95,6 @@ export class DispatchService {
           matchReason: match.reason,
         },
       });
-      await tx.workOrder.update({ where: { id: wo.id }, data: { status: 'DISPATCHED' } });
       await tx.auditLog.create({
         data: {
           actorId: user.id,
@@ -143,7 +150,14 @@ export class DispatchService {
       return false;
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    const done = await this.prisma.$transaction(async (tx) => {
+      // A coordinator may have overridden or dispatched it meanwhile; then leave it to them.
+      const { count } = await tx.workOrder.updateMany({
+        where: { id: wo.id, status: wo.status, urgency: wo.urgency, category: wo.category },
+        data: { status: 'DISPATCHED' },
+      });
+      if (count !== 1) return false;
+
       const dispatch = await tx.dispatch.create({
         data: {
           workOrderId: wo.id,
@@ -154,7 +168,6 @@ export class DispatchService {
           matchReason: top!.reason,
         },
       });
-      await tx.workOrder.update({ where: { id: wo.id }, data: { status: 'DISPATCHED' } });
       await tx.auditLog.create({
         data: {
           actorId: null, // system
@@ -176,7 +189,12 @@ export class DispatchService {
         { channel: 'EMAIL', to: `vendor:${top!.name}`, body: `New job ${wo.id} (auto-dispatched, ${CATEGORY_SHORT[wo.category!]}): ${wo.description.slice(0, 120)}` },
         tx,
       );
+      return true;
     });
+    if (!done) {
+      this.logger.log(`Auto-dispatch skipped for ${wo.id}: it was changed while deciding`);
+      return false;
+    }
     this.logger.log(`Auto-dispatched ${wo.id} to ${top!.name} (${decision.reason})`);
     return true;
   }
@@ -272,7 +290,12 @@ export class DispatchService {
       }
       const now = new Date();
       await this.prisma.$transaction(async (tx) => {
-        await tx.dispatch.update({ where: { id: d.id }, data: { completedAt: now, completionNote: input.note } });
+        // Only once: a second "Mark complete" sent at the same moment must not complete it again.
+        const { count } = await tx.dispatch.updateMany({
+          where: { id: d.id, completedAt: null },
+          data: { completedAt: now, completionNote: input.note },
+        });
+        if (count !== 1) throw new ConflictException('This job is already complete.');
         if (savedKey) {
           await tx.workOrderMedia.create({
             data: { workOrderId: d.workOrderId, path: savedKey.key, kind: 'COMPLETION', contentType: savedKey.contentType, sizeBytes: savedKey.size },

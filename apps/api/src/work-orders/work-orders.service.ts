@@ -192,10 +192,12 @@ export class WorkOrdersService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      // Only while it is still waiting: answers sent twice at the same moment are saved once.
+      const { count } = await tx.workOrder.updateMany({ where: { id: w.id, status: 'NEEDS_INFO' }, data: { status: 'SUBMITTED' } });
+      if (count !== 1) throw new ConflictException(NOT_WAITING_MESSAGE);
       for (const a of input.answers) {
         await tx.followUpAnswer.create({ data: { workOrderId: w.id, questionId: a.questionId, answer: a.answer } });
       }
-      await tx.workOrder.update({ where: { id: w.id }, data: { status: 'SUBMITTED' } });
       await tx.auditLog.create({
         data: {
           actorId: user.id,

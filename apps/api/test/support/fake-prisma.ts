@@ -131,6 +131,12 @@ const isDateFilter = (v: unknown): v is DateFilter => typeof v === 'object' && v
 let nextId = 1;
 const id = (prefix: string) => `${prefix}_${nextId++}`;
 const byDateDesc = <T extends { createdAt: Date }>(a: T, b: T) => b.createdAt.getTime() - a.createdAt.getTime();
+/** Plain-value where clauses only (what the conditional updates use); anything else is unsupported. */
+const matchesAll = <T extends object>(row: T, where: Partial<T>) =>
+  Object.entries(where).every(([k, v]) => {
+    if (v !== null && typeof v === 'object' && !(v instanceof Date)) throw new Error(`FakePrisma: unsupported where on ${k}`);
+    return (row as Record<string, unknown>)[k] === v;
+  });
 const byDateAsc = <T extends { createdAt: Date }>(a: T, b: T) => a.createdAt.getTime() - b.createdAt.getTime();
 /** Strictly increasing timestamps so newest/oldest ordering is always well defined. */
 const after = (rows: { createdAt: Date }[]) =>
@@ -363,6 +369,13 @@ export class FakePrisma {
       Object.assign(w, data, { updatedAt: new Date() });
       return w;
     },
+
+    /** Conditional update: every field in `where` must equal the stored value (null included). */
+    updateMany: async ({ where, data }: { where: Partial<FakeWorkOrder>; data: Partial<FakeWorkOrder> }) => {
+      const rows = this.workOrders.filter((w) => matchesAll(w, where));
+      for (const w of rows) Object.assign(w, data, { updatedAt: new Date() });
+      return { count: rows.length };
+    },
   };
 
   workOrderMedia = {
@@ -437,6 +450,12 @@ export class FakePrisma {
       if (!d) throw new Error(`FakePrisma: no dispatch ${where.id}`);
       Object.assign(d, data);
       return d;
+    },
+
+    updateMany: async ({ where, data }: { where: Partial<FakeDispatch>; data: Partial<FakeDispatch> }) => {
+      const rows = this.dispatches.filter((d) => matchesAll(d, where));
+      for (const d of rows) Object.assign(d, data);
+      return { count: rows.length };
     },
   };
 
