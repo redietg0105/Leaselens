@@ -136,6 +136,28 @@ describe('Demo mode settings', () => {
     expect(isDemoMode({})).toBe(false);
   });
 
+  it('demo mode only works with a local WEB_URL, in case NODE_ENV was left unset on a server', () => {
+    const r = checkEnv({ ...base, DEMO_MODE: 'on', WEB_URL: 'https://leaselens.example.com' });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join(' ')).toMatch(/only works when WEB_URL is localhost or a private network address/);
+    expect(isDemoMode({ DEMO_MODE: 'on', WEB_URL: 'https://leaselens.example.com' })).toBe(false);
+    expect(checkEnv({ ...base, DEMO_MODE: 'off', WEB_URL: 'https://leaselens.example.com' }).ok).toBe(true);
+  });
+
+  it.each([
+    ['http://localhost:3000', true],
+    ['http://127.0.0.1:3000', true],
+    ['http://192.168.1.20:3000', true], // phone on the same Wi-Fi
+    ['http://10.0.0.5:3000', true],
+    ['http://172.20.1.1:3000', true],
+    ['http://172.32.1.1:3000', false],
+    ['https://leaselens.example.com', false],
+    ['http://203.0.113.7', false],
+    ['http://localhost.evil.example', false],
+  ])('WEB_URL %s counts as local: %p', (url, local) => {
+    expect(isDemoMode({ DEMO_MODE: 'on', WEB_URL: url })).toBe(local);
+  });
+
   it('the demo accounts match the seeded users', () => {
     const seeded = buildSeedData().users.map((u) => ({ role: u.role, email: u.email, name: u.name }));
     for (const a of DEMO_ACCOUNTS) expect(seeded).toContainEqual({ role: a.role, email: a.email, name: a.name });

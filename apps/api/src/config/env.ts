@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isLocalWebUrl } from './demo';
 
 const url = (name: string) =>
   z.url({ protocol: /^https?$/, error: `${name} must be a full URL, e.g. http://localhost:3000` });
@@ -35,6 +36,8 @@ export const EnvSchema = z.object({
   DEMO_MODE: z.enum(['on', 'off'], { error: 'DEMO_MODE must be "on" or "off"' }).optional(),
 }).refine((e) => !(e.DEMO_MODE === 'on' && e.NODE_ENV === 'production'), {
   message: 'DEMO_MODE must be "off" when NODE_ENV is production — demo mode shows sign-in links in the browser.',
+}).refine((e) => !(e.DEMO_MODE === 'on' && !isLocalWebUrl(e.WEB_URL)), {
+  message: 'DEMO_MODE="on" only works when WEB_URL is localhost or a private network address — demo mode shows sign-in links in the browser.',
 });
 
 export interface EnvCheck {
