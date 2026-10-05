@@ -100,6 +100,26 @@ describe('personal data stays out of production logs', () => {
   });
 });
 
+describe('raw SQL', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { readdirSync, readFileSync, statSync } = require('node:fs') as typeof import('node:fs');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const path = require('node:path') as typeof import('node:path');
+  const files = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const full = path.join(dir, name);
+      return statSync(full).isDirectory() ? files(full) : /\.ts$/.test(name) ? [full] : [];
+    });
+
+  it('the app never builds SQL from strings (pgvector queries must use the $queryRaw`...` tagged template)', () => {
+    const root = path.resolve(__dirname, '..');
+    const offenders = [...files(path.join(root, 'src')), ...files(path.join(root, 'prisma'))].filter((f) =>
+      /\$(queryRaw|executeRaw)Unsafe\b|Prisma\.raw\s*\(/.test(readFileSync(f, 'utf8')),
+    );
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('rate limits', () => {
   let t: TestApp;
   afterEach(async () => {
