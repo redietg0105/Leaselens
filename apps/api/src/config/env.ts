@@ -21,6 +21,7 @@ export const EnvSchema = z.object({
   WEB_URL: url('WEB_URL').optional(),
   API_URL: url('API_URL').optional(),
   PORT: optionalNumber('PORT', 1, 65535),
+  TRUST_PROXY: optionalNumber('TRUST_PROXY', 0, 10),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().optional(),
   GEMINI_FALLBACK_MODEL: z.string().optional(),

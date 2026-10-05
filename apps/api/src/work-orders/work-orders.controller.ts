@@ -5,6 +5,7 @@ import {
   type WorkOrderDetail,
   type WorkOrderSummary,
 } from '@leaselens/shared';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser, Roles } from '../auth/decorators';
@@ -12,12 +13,20 @@ import { parseBody } from '../common/parse-body';
 import { PhotoUploadInterceptor } from './photo-upload.interceptor';
 import { WorkOrdersService } from './work-orders.service';
 
+const MINUTE = 60 * 1000;
+/** New maintenance requests per address per 10 minutes. */
+export const NEW_REQUESTS_PER_WINDOW = 10;
+
 @Controller('work-orders')
 export class WorkOrdersController {
   constructor(private readonly workOrders: WorkOrdersService) {}
 
-  /** Multipart: description, entryPermission, accessNotes?, photos[] (0–3). Any unitId sent is ignored. */
+  /**
+   * Multipart: description, entryPermission, accessNotes?, photos[] (0–3). Any unitId sent is ignored.
+   * Each request costs photo processing and an AI call, so creating them is limited (per address).
+   */
   @Roles('TENANT')
+  @Throttle({ default: { limit: NEW_REQUESTS_PER_WINDOW, ttl: 10 * MINUTE } })
   @Post()
   @UseInterceptors(PhotoUploadInterceptor)
   async create(
