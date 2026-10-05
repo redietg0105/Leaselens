@@ -103,7 +103,7 @@ describe('Staff: queue, override, dispatch', () => {
 
       const res = await http().get('/staff/queue').set('Cookie', coordinator.cookie).expect(200);
       const row = res.body.find((i: { id: string }) => i.id === w.id);
-      expect(row).toMatchObject({ status: 'NEEDS_INFO', confidence: 0.83, photoCount: 1, category: 'PLUMBING' });
+      expect(row).toMatchObject({ status: 'NEEDS_INFO', confidence: 0.83, overridden: false, photoCount: 1, category: 'PLUMBING' });
       expect(res.body.some((i: { status: string }) => i.status === 'NEEDS_REVIEW')).toBe(true);
     });
 
@@ -167,6 +167,22 @@ describe('Staff: queue, override, dispatch', () => {
       expect(detail.triageHistory.map((h: { kind: string }) => h.kind)).toEqual(['override', 'override', 'ai']);
       expect(detail.triageHistory[2]).toMatchObject({ model: 'gemini', urgency: 'ROUTINE', category: 'PLUMBING' });
       expect(detail).toMatchObject({ category: 'APPLIANCE', urgency: 'URGENT', summaryForVendor: VALID_ROUTINE.summaryForVendor });
+    });
+
+    it('marks overridden requests in the queue, so the AI confidence is not shown as if the AI chose the new values', async () => {
+      await setup();
+      const w = wo({ category: 'PLUMBING', urgency: 'ROUTINE', status: 'TRIAGED' });
+      t.db.triageResults.push({
+        id: 'ai1', workOrderId: w.id, rawJson: { raw: JSON.stringify(VALID_ROUTINE), error: null }, valid: true, category: 'PLUMBING',
+        urgency: 'ROUTINE', confidence: 0.9, subIssue: 'Drip', followUpQuestionIds: [], emergencyRule: null, model: 'gemini',
+        promptVersion: 'triage-v1', overriddenById: null, overrideReason: null, overriddenAt: null, createdAt: new Date(Date.now() - 1000),
+      });
+      const row = async () =>
+        (await http().get('/staff/queue').set('Cookie', coordinator.cookie).expect(200)).body.find((i: { id: string }) => i.id === w.id);
+      expect(await row()).toMatchObject({ overridden: false, confidence: 0.9 });
+
+      await http().post(`/work-orders/${w.id}/override`).set('Cookie', coordinator.cookie).send({ category: 'APPLIANCE', reason: 'It is the dishwasher hose' }).expect(200);
+      expect(await row()).toMatchObject({ overridden: true, category: 'APPLIANCE' });
     });
 
     it('requires a reason and an actual change', async () => {

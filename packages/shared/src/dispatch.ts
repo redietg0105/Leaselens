@@ -153,6 +153,8 @@ export const QueueItemSchema = z.object({
   category: CategorySchema.nullable(),
   urgency: UrgencySchema.nullable(),
   confidence: z.number().nullable(),
+  /** A person has changed the category or urgency, so the AI's confidence no longer describes them. */
+  overridden: z.boolean(),
   status: WorkOrderStatusSchema,
   createdAt: z.string(),
   photoCount: z.number().int(),

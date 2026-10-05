@@ -27,6 +27,8 @@ const URGENCY_OPTIONS = [
 ] as const;
 
 const confidenceText = (c: number | null) => (c === null ? "—" : `${Math.round(c * 100)}%`);
+// Shown instead of the AI confidence once a person has changed the category or urgency.
+const CHANGED_BY_STAFF = "Changed by staff";
 
 export default async function StaffHome({
   searchParams,
@@ -125,8 +127,9 @@ export default async function StaffHome({
                   </div>
                   <p className="mt-2 line-clamp-2 text-sm font-medium break-words">{i.description}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {i.unit} · {i.building} · {i.category ? CATEGORY_SHORT[i.category] : "No category"} · AI{" "}
-                    {confidenceText(i.confidence)} · {i.photoCount} photo{i.photoCount === 1 ? "" : "s"}
+                    {i.unit} · {i.building} · {i.category ? CATEGORY_SHORT[i.category] : "No category"} ·{" "}
+                    {i.overridden ? CHANGED_BY_STAFF : `AI ${confidenceText(i.confidence)}`} · {i.photoCount} photo
+                    {i.photoCount === 1 ? "" : "s"}
                   </p>
                 </Link>
               </li>
@@ -167,7 +170,9 @@ export default async function StaffHome({
                       <span className="block text-xs text-muted-foreground">{i.building.replace(/ — .*/, "")}</span>
                     </td>
                     <td className="px-3 py-2 align-top">{i.category ? CATEGORY_SHORT[i.category] : <span className="text-muted-foreground">—</span>}</td>
-                    <td className="px-3 py-2 align-top tabular-nums">{confidenceText(i.confidence)}</td>
+                    <td className="px-3 py-2 align-top tabular-nums">
+                      {i.overridden ? <span className="whitespace-nowrap">{CHANGED_BY_STAFF}</span> : confidenceText(i.confidence)}
+                    </td>
                     <td className="px-3 py-2 align-top">
                       <span className="inline-flex items-center gap-1 whitespace-nowrap">
                         {STAFF_STATUS_LABEL[i.status]}

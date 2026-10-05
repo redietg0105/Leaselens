@@ -65,6 +65,8 @@ export class StaffService {
         category: w.category,
         urgency: w.urgency,
         confidence: aiConfidence(w.triageResults),
+        // Any override counts: an AI run that finishes after one is kept in history only (never applied).
+        overridden: w.triageResults.some((r) => !isAiRow(r)),
         status: w.status,
         createdAt: w.createdAt.toISOString(),
         photoCount: w.media.length,
