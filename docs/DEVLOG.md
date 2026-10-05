@@ -341,3 +341,35 @@ no buttons and no link for a known account. 15/16 checks; the 16th flagged the b
 intended 429, not an app error.
 
 **Time spent:** ~1 h
+
+## 2026-10-05 — Session 12: testing checklist and a full run of it
+
+**Prompt:** "List every feature and button… Create docs/TESTING_CHECKLIST.md… Don't change any app code yet."
+Then: "Commit and push the checklist. Then run through docs/TESTING_CHECKLIST.md yourself using the browser
+and API against my running app (demo mode on)… Mark items that need a human as Manual. Don't fix anything yet.
+… Reset any shared demo data you change afterwards, but don't delete my own requests. Commit the updated
+checklist."
+
+**Built**
+- `docs/TESTING_CHECKLIST.md`: 304 items by role and page (sections 0–13), each with steps and the exact
+  expected wording.
+- Ran all 304 with Playwright (Edge) scripts plus API and database checks; results filled into the checklist.
+  **296 Pass, 3 Fail, 5 Manual.** No app code changed.
+
+**Fails found:** KB-1 tenant "My requests" and vendor "My jobs" rows use `outline-none` with only a faint grey
+background on focus; RS-8 the staff queue table is 815 px wide, so the page scrolls sideways at 768 px;
+SI-13 "Use a different email" keeps the previous email in the field. Also noticed: a failed triage records
+the primary model name even when the error came from the fallback model.
+
+**Problems and fixes (testing, not app)**
+- Many first-run fails were the script reading the page before it finished loading; re-checked with waits.
+- Browser throttling doesn't slow the server-side data fetch, so loading placeholders rarely showed. Put a
+  3-second delay proxy in front of a copy of the API instead; all five loading states then showed.
+- `POST /auth/verify` is limited to 20 per minute per IP; a burst of test sign-ins hit it (working as designed).
+- API-stopped and Gemini-failure tests ran on a separate copy (web :3001, API :4101, same database) so the
+  user's `npm run dev` stayed untouched.
+- Clean-up: 37 "QA:" requests with their dispatches, photos, answers, notifications and audit rows deleted;
+  temporary accounts removed; row counts match the pre-run snapshot. Sign-in sessions created by the test
+  browsers were left to expire.
+
+**Time spent:** ~5 h
