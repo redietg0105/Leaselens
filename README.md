@@ -147,8 +147,9 @@ DEMO_MODE="on"
 - Unknown emails still get exactly the normal response (no link), and the rate limits still apply.
 - **Trade-off (accepted for local demos):** because known accounts get a link and unknown ones don't, demo mode
   reveals which emails have an account. Never turn it on where real people's accounts exist.
-- It can't reach production: demo mode only works when `NODE_ENV` isn't `production`, and the API refuses to
-  start with `DEMO_MODE="on"` in production. The default is `"off"`.
+- It can't reach production: demo mode only works when `NODE_ENV` isn't `production` and `WEB_URL` is localhost
+  or a private network address (e.g. `http://192.168.1.20:3000` for a phone on your Wi-Fi). The API refuses to
+  start with `DEMO_MODE="on"` otherwise. The default is `"off"`.
 
 The demo data has 4 buildings, 40 units, 8 vendors across all trades and 12 work orders covering every urgency
 and status, including three emergencies (ceiling leak, gas smell, sparking outlet).
@@ -182,21 +183,41 @@ From [CLAUDE.md](CLAUDE.md) and SPEC §4 — how each is enforced, and where it'
 - Uploads: type checked by file content, 5 MB / 3-photo limits, 40-megapixel cap, re-encoded (strips GPS/EXIF),
   server-generated storage keys (no path tricks), served only through an access-checked route.
 - HTTP: Helmet headers, CORS limited to the web app, central error handler (JSON, no stack traces) with a
-  request id in every error and log line; same-site-only return paths (no open redirects).
-- Logging: structured pino logs; cookies, `Set-Cookie` and `Authorization` are redacted (tested).
-- Demo mode (sign-in links shown in the browser) is off by default, only works outside production, and the API
-  refuses to start with it on in production (tested).
+  request id in every error and log line — including oversized (413) and malformed bodies; same-site-only
+  return paths (no open redirects).
+- CSRF: `SameSite=Lax` cookie, plus the API refuses writes whose `Origin` is another site or that the browser
+  marks `Sec-Fetch-Site: cross-site` (tested).
+- Web app: per-request Content-Security-Policy with a nonce (scripts run only if Next.js marked them; the page
+  talks only to itself and the API; no framing), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy:
+  same-origin` (sign-in tokens never leak in a Referer), a Permissions-Policy, HSTS in production, no
+  `X-Powered-By` (policy tested; checked in the browser with no violations).
+- Concurrency: overrides, approvals, auto-dispatch, completions and answers only save if the request is unchanged
+  since it was read — two people can't both act on an old version (e.g. lower an emergency someone just raised)
+  (tested by simulating each race).
+- Rate limits: sign-in links (5/IP and 3/email per 15 min), sign-in confirmation (20/min), new requests
+  (10/IP per 10 min — each one costs an AI call), everything else 120/min. `TRUST_PROXY` makes limits per visitor
+  behind a load balancer; without it `X-Forwarded-For` is ignored, so it can't be forged (tested).
+- Logging: structured pino logs; cookies, `Set-Cookie` and `Authorization` are redacted. In production,
+  notifications log only their channel and id (no tenant emails or text), the mail stand-in logs no address, and
+  database errors are logged as class, code and reason only — never the values in the query (tested).
+- SQL: no raw SQL; a test fails if `$queryRawUnsafe`, `$executeRawUnsafe` or `Prisma.raw` ever appear, so the
+  pgvector queries will have to use the parameterised `` $queryRaw`…` `` template.
+- Demo mode (sign-in links shown in the browser) is off by default, only works outside production and with a
+  localhost or private-network `WEB_URL`, and the API refuses to start otherwise (tested).
 - Secrets: only placeholder `.env.example` files are tracked; `.env`, `uploads/` and build output are gitignored;
   git history scanned — no keys, passwords or database hosts in any commit.
 
 **Gaps (known, for the next phase)**
 - With `DEMO_MODE="on"` the sign-in page reveals which emails have accounts — acceptable for local demos only.
 - Email sending isn't wired up — in production nobody could sign in yet (links are only printed in development).
-- Rate limits are in memory: per server instance and reset on restart; behind a proxy, set the trusted proxy so
-  real client IPs are used.
-- No CSRF token — relies on `SameSite=Lax`, the CORS allow-list and JSON/multipart bodies (fine while web and API
-  share a site; revisit for other deployments).
-- No Content-Security-Policy on the web app yet.
+- Rate limits are in memory: per server instance and reset on restart, and per address (tenants sharing one
+  network share a limit).
+- No CSRF token — relies on `SameSite=Lax`, the CORS allow-list and the Origin check above.
+- The web CSP allows inline styles (`style-src 'unsafe-inline'`), which Next.js and the UI library need; styles
+  can't run code.
+- Photos sent to Gemini are re-encoded (no GPS/EXIF) but may still show personal things (mail on a counter, a
+  face); the AI's vendor summary could carry text a tenant tried to inject — it is shown as plain text and the
+  vendor also sees the tenant's own words.
 - No MFA or "sign out everywhere" for staff; sessions aren't bound to a device.
 - Uploaded photos aren't virus-scanned (re-encoding removes most risk) and have no retention policy.
 - The audit log is append-only by convention, not tamper-evident.
@@ -206,11 +227,11 @@ From [CLAUDE.md](CLAUDE.md) and SPEC §4 — how each is enforced, and where it'
 
 ## Testing
 
-`npm test` runs **285 API tests** in about 10 seconds — no network or database: the API runs against an
+`npm test` runs **323 API tests** in about 15 seconds — no network or database: the API runs against an
 in-memory fake of Prisma and a fake Gemini that records exactly what would be sent. Covered: sign-in and
 sessions, role guards, tenant and vendor isolation, validation and photo rules, every emergency rule and the
 heating season, AI success/failure/timeout/invalid output, privacy and prompt injection, follow-ups, overrides,
-vendor ranking and auto-dispatch limits, vendor completion, demo mode (never a link outside demo mode, in production or for unknown emails), request ids, log
+vendor ranking and auto-dispatch limits, vendor completion, demo mode (never a link outside demo mode, in production or for unknown emails), concurrent changes, cross-site writes, rate limits, personal data in logs, the web CSP, request ids, log
 redaction and settings checks.
 Several safety tests were checked by deliberately breaking the rule they guard (see DEVLOG).
 
@@ -221,9 +242,6 @@ temporary scripts that weren't committed.
 
 - **No Gas/utilities category.** A gas smell is caught by the emergency rule (instructions + on-call alert), but
   triage files it under Appliance/Other and no vendor trade covers gas lines — the utility must be called by a person.
-- **AI confidence is still shown after a staff override.** The queue and request page show the last AI
-  confidence even when a coordinator has changed the category or urgency, which can make the AI look more
-  certain about a value it didn't choose.
 - Triage runs inside the API process (with a startup sweep for anything interrupted) — production should use a
   job queue (e.g. Cloud Tasks).
 - "No heat" uses the calendar heating season, not the outdoor temperature.

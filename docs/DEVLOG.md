@@ -401,3 +401,42 @@ so the local DEMO_MODE="on" leaked into the tests. A Jest setup file now sets DE
 loads (demo-mode tests turn it on themselves). npm run check: typecheck, lint, 289 tests pass.
 
 **Time spent:** ~1 h
+
+## 2026-10-05 — Session 14: error-handling review and security audit
+
+**Prompt:** "First, small fix: the staff request page header still shows the AI confidence after an override;
+show 'Changed by staff' there too. Then: Add error handling to prevent crashes throughout the app… Then: Perform
+a complete security audit… For the report I need (1) a table of every vulnerability or weakness… (2) the list of
+error-handling gaps you fixed. Add tests where possible, run npm run check, then commit and push." (The session
+was cut off by the usage limit once; resumed, checked state, finished.)
+
+**Built** (one commit per fix)
+- Request page header shows "Changed by staff" after an override (detail response has `overridden`).
+- API errors: 413 for oversized bodies (was 500), plain 400 for broken JSON (was the parser's message), request
+  id on these early errors.
+- Concurrency: overrides, approvals, auto-dispatch, completions and answers are conditional updates on the state
+  they were based on; a mismatch returns 409. Closes a race that could lower an emergency without its safeguards.
+- CSRF defence in depth: writes refused for a foreign `Origin` or `Sec-Fetch-Site: cross-site`.
+- Rate limit on new requests (10 / 10 min / address); `TRUST_PROXY` setting for deployments behind a proxy.
+- Demo mode also needs a localhost / private-network `WEB_URL`.
+- No personal data in production logs (notifications, mail stand-in, Prisma error messages via `errorText()`).
+- Guard test against string-built SQL (for the coming pgvector queries).
+- Web: per-request CSP with nonce (proxy.ts, policy in packages/shared), security headers, no X-Powered-By;
+  pages now render per request.
+- Web: unreadable photo files get a message; adding photos works without `crypto.randomUUID` (plain-HTTP LAN
+  testing); missing photos show "Photo unavailable"; sign-in page loading state.
+
+**Checked, no change needed:** IDOR (every read through one access check; already tested), session cookie
+flags, upload pipeline, redirect safety, seed refuses production, secrets in git history (only placeholders),
+what is sent to Gemini (redacted, access notes never sent). `npm audit`: 12 high, all in CLI/build tooling
+(braces — no fix exists; deepmerge-ts — pinned by Prisma 6); unchanged and accepted.
+
+**Problems and fixes:** the user's `npm run dev` had stopped mid-session, so browser checks ran on a copy
+(web 3001 dev + production build on 3002, API 4101). An end-to-end check first "failed" because its text said
+"smoke test" — the fire rule correctly flags the word smoke; reworded. The first log test passed vacuously
+(the test app swaps in a fake mailer); now uses the real one. Each new test was checked against the old code.
+
+**Checks:** npm run check — typecheck, lint, 323 tests pass. Browser: CSP on every page with no violations (dev
+and production build), framing blocked, end-to-end tenant → coordinator → vendor flow, the photo edge cases.
+
+**Time spent:** ~3 h
