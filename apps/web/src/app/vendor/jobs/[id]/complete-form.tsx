@@ -14,6 +14,7 @@ import { checkPhotoFile } from "@/lib/photo-file";
 export function CompleteJobForm({ jobId }: { jobId: string }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
+  const addPhotoButton = useRef<HTMLButtonElement>(null);
   const [note, setNote] = useState("");
   const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -52,7 +53,8 @@ export function CompleteJobForm({ jobId }: { jobId: string }) {
     setSending(true);
     try {
       await apiPost(`/vendor/jobs/${jobId}/complete`, form);
-      router.refresh();
+      // The form goes away; the page shows "Completed …" and focuses it (?completed=1).
+      router.replace(`/vendor/jobs/${jobId}?completed=1`, { scroll: false });
     } catch (err) {
       setSending(false);
       setSubmitError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
@@ -91,25 +93,43 @@ export function CompleteJobForm({ jobId }: { jobId: string }) {
           <div className="relative w-40 overflow-hidden rounded-lg border bg-muted">
             {/* eslint-disable-next-line @next/next/no-img-element -- local preview from a blob: URL */}
             <img src={photo.url} alt="Completion photo preview" className="aspect-square w-full object-cover" />
+            {/* 44px touch area around a 32px circle */}
             <button
               type="button"
-              onClick={() => setPhoto(null)}
+              onClick={() => {
+                setPhoto(null);
+                requestAnimationFrame(() => addPhotoButton.current?.focus());
+              }}
               disabled={sending}
               aria-label="Remove photo"
-              className="absolute top-1 right-1 flex size-8 items-center justify-center rounded-full bg-background/90 shadow ring-1 ring-border focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              className="group absolute top-0 right-0 flex size-11 items-center justify-center focus-visible:outline-none"
             >
-              <X aria-hidden className="size-4" />
+              <span className="flex size-8 items-center justify-center rounded-full bg-background/90 shadow ring-1 ring-border group-focus-visible:ring-3 group-focus-visible:ring-ring/50">
+                <X aria-hidden className="size-4" />
+              </span>
             </button>
           </div>
         ) : (
-          <Button type="button" variant="outline" className="h-11" onClick={() => fileInput.current?.click()} disabled={sending}>
+          <Button
+            ref={addPhotoButton}
+            type="button"
+            variant="outline"
+            className="h-11"
+            aria-describedby={photoError ? "photo-error" : undefined}
+            onClick={() => fileInput.current?.click()}
+            disabled={sending}
+          >
             <ImagePlus aria-hidden />
             Add photo
           </Button>
         )}
         <input ref={fileInput} type="file" accept={ALLOWED_PHOTO_TYPES.join(",")} hidden onChange={onPick} />
         <p className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 5 MB.</p>
-        {photoError && <p className="text-sm text-destructive">{photoError}</p>}
+        {photoError && (
+          <p id="photo-error" role="alert" className="text-sm text-destructive">
+            {photoError}
+          </p>
+        )}
       </div>
 
       {submitError && (

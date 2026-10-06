@@ -27,7 +27,8 @@ export function VendorPanel({
     setError(null);
     try {
       await apiPost(`/work-orders/${workOrderId}/dispatch`, { vendorId });
-      router.refresh();
+      // The panel goes away; the page focuses the new Dispatch section (?dispatched=1).
+      router.replace(`/staff/work-orders/${workOrderId}?dispatched=1`, { scroll: false });
     } catch (err) {
       setSending(null);
       setError(err instanceof ApiError ? err.message : "Couldn't dispatch. Please try again.");

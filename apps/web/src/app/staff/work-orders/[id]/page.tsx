@@ -17,16 +17,24 @@ import { formatDate, usd } from "@/lib/format";
 import { apiGet, requireRoles } from "@/lib/session";
 import { notFound } from "next/navigation";
 import { OverrideForm } from "./override-form";
+import { FocusOnMount } from "@/components/focus-on-mount";
 import { VendorPanel } from "./vendor-panel";
 
 export const metadata: Metadata = { title: "Request · Staff · LeaseLens" };
 
 const DISPATCHABLE = new Set(["SUBMITTED", "NEEDS_INFO", "TRIAGED", "NEEDS_REVIEW"]);
 
-export default async function StaffWorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StaffWorkOrderPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await requireRoles("/staff", ["COORDINATOR", "MANAGER"]);
   if (!user) notFound();
   const { id } = await params;
+  const { dispatched } = await searchParams;
   const w = await apiGet(`/staff/work-orders/${encodeURIComponent(id)}`, StaffWorkOrderSchema);
   const canDispatch = DISPATCHABLE.has(w.status) && w.dispatches.length === 0;
   const matches = canDispatch && w.category ? await apiGet(`/work-orders/${w.id}/vendors`, VendorMatchSchema.array()) : [];
@@ -45,7 +53,7 @@ export default async function StaffWorkOrderPage({ params }: { params: Promise<{
   );
 
   return (
-    <main className="mx-auto grid w-full max-w-6xl flex-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1fr_380px]">
+    <main id="main-content" tabIndex={-1} className="mx-auto grid w-full max-w-6xl flex-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1fr_380px]">
       <div className="min-w-0 space-y-6">
         <Link href="/staff" className={buttonVariants({ variant: "ghost", className: "-ml-2.5" })}>
           <ArrowLeft aria-hidden />
@@ -122,9 +130,10 @@ export default async function StaffWorkOrderPage({ params }: { params: Promise<{
           </div>
         </dl>
 
+        {dispatched === "1" && w.dispatches.length > 0 && <FocusOnMount targetId="dispatches" />}
         {w.dispatches.length > 0 && (
           <section aria-labelledby="dispatches" className="space-y-2">
-            <h2 id="dispatches" className="text-sm font-medium text-muted-foreground">Dispatch</h2>
+            <h2 id="dispatches" tabIndex={-1} className="text-sm font-medium text-muted-foreground outline-none">Dispatch</h2>
             <ul className="space-y-2">
               {w.dispatches.map((d) => (
                 <li key={d.id} className="rounded-lg border p-3 text-sm">

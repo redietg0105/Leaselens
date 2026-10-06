@@ -8,6 +8,7 @@ import {
   WorkOrderDetailSchema,
 } from "@leaselens/shared";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { FocusOnMount } from "@/components/focus-on-mount";
 import { EmergencyAlert } from "@/components/emergency-alert";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -28,12 +29,12 @@ export default async function RequestDetailPage({
 }) {
   await requireTenant();
   const { id } = await params;
-  const { created } = await searchParams;
+  const { created, answered } = await searchParams;
   // The API returns 404 for another tenant's request → the not-found page below.
   const request = await apiGet(`/work-orders/${encodeURIComponent(id)}`, WorkOrderDetailSchema);
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
+    <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
       <Link href="/tenant" className={buttonVariants({ variant: "ghost", className: "-ml-2.5 self-start" })}>
         <ArrowLeft aria-hidden />
         My requests
@@ -41,8 +42,17 @@ export default async function RequestDetailPage({
 
       {request.urgency === "EMERGENCY" && <EmergencyAlert rule={request.emergencyRule} />}
 
+      {/* After sending: focus the confirmation — or the emergency steps, which matter more. */}
+      {created === "1" && <FocusOnMount targetId={request.urgency === "EMERGENCY" ? "emergency-alert" : "request-sent"} />}
+      {answered === "1" && <FocusOnMount targetId="answers-sent" />}
+      {answered === "1" && (
+        <div id="answers-sent" tabIndex={-1} role="status" className="flex gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950 outline-none dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100">
+          <CheckCircle2 aria-hidden className="size-5 shrink-0" />
+          <p>Thanks — we got your answers and are updating your request.</p>
+        </div>
+      )}
       {created === "1" && (
-        <div role="status" className="flex gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100">
+        <div id="request-sent" tabIndex={-1} role="status" className="flex gap-3 outline-none rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100">
           <CheckCircle2 aria-hidden className="size-5 shrink-0" />
           <p>Request sent. We&apos;ll review it and let you know the next steps.</p>
         </div>

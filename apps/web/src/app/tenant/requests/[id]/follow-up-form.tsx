@@ -39,7 +39,8 @@ export function FollowUpForm({ requestId, questions }: { requestId: string; ques
     setError(null);
     try {
       await apiPost(`/work-orders/${requestId}/answers`, parsed.data);
-      router.refresh();
+      // The form goes away; the page confirms and takes focus (see ?answered=1 on the request page).
+      router.replace(`/tenant/requests/${requestId}?answered=1`, { scroll: false });
     } catch (err) {
       setSending(false);
       setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");

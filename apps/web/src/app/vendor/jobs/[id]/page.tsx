@@ -8,6 +8,7 @@ import { apiUrl } from "@/lib/api";
 import { ApiPhoto } from "@/components/api-photo";
 import { formatDate } from "@/lib/format";
 import { apiGet, requireArea } from "@/lib/session";
+import { FocusOnMount } from "@/components/focus-on-mount";
 import { CompleteJobForm } from "./complete-form";
 
 export const metadata: Metadata = { title: "Job · LeaseLens" };
@@ -19,9 +20,16 @@ const ENTRY_FOR_VENDOR = {
   CALL_FIRST: "Call the coordinator before entering",
 } as const;
 
-export default async function VendorJobPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function VendorJobPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   await requireArea("/vendor");
   const { id } = await params;
+  const { completed } = await searchParams;
   // The API answers 404 for a job assigned to another vendor → not-found page.
   const job = await apiGet(`/vendor/jobs/${encodeURIComponent(id)}`, VendorJobSchema);
   const photoGrid = (photos: typeof job.photos, label: string) => (
@@ -37,7 +45,7 @@ export default async function VendorJobPage({ params }: { params: Promise<{ id: 
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
+    <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
       <Link href="/vendor/jobs" className={buttonVariants({ variant: "ghost", className: "-ml-2.5 self-start" })}>
         <ArrowLeft aria-hidden />
         My jobs
@@ -95,9 +103,10 @@ export default async function VendorJobPage({ params }: { params: Promise<{ id: 
         {job.photos.length === 0 ? <p className="text-sm text-muted-foreground">No photos.</p> : photoGrid(job.photos, "Photo")}
       </section>
 
+      {completed === "1" && job.completedAt && <FocusOnMount targetId="done-heading" />}
       {job.completedAt ? (
         <section aria-labelledby="done-heading" className="space-y-2 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm dark:border-emerald-800 dark:bg-emerald-950">
-          <h2 id="done-heading" className="font-medium">
+          <h2 id="done-heading" tabIndex={-1} className="font-medium outline-none">
             Completed {formatDate(job.completedAt)}
           </h2>
           {job.completionNote && <p className="whitespace-pre-wrap break-words">{job.completionNote}</p>}

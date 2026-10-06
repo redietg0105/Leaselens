@@ -64,6 +64,12 @@ export function NewRequestForm() {
   }
 
   function removePhoto(key: string) {
+    const index = photos.findIndex((p) => p.key === key);
+    // Keep focus in the photo list: the next photo's remove button, else "Add photo".
+    requestAnimationFrame(() => {
+      const buttons = document.querySelectorAll<HTMLButtonElement>("[data-remove-photo]");
+      (buttons[Math.min(index, buttons.length - 1)] ?? document.getElementById("photos-field"))?.focus();
+    });
     setPhotos((prev) => {
       const gone = prev.find((p) => p.key === key);
       if (gone) URL.revokeObjectURL(gone.previewUrl);
@@ -153,14 +159,18 @@ export function NewRequestForm() {
             <li key={p.key} className="relative aspect-square overflow-hidden rounded-lg border bg-muted">
               {/* eslint-disable-next-line @next/next/no-img-element -- local preview from a blob: URL */}
               <img src={p.previewUrl} alt={`Photo ${i + 1} preview`} className="size-full object-cover" />
+              {/* 44px touch area around a 32px circle */}
               <button
                 type="button"
+                data-remove-photo
                 onClick={() => removePhoto(p.key)}
                 disabled={submitting}
                 aria-label={`Remove photo ${i + 1}`}
-                className="absolute top-1 right-1 flex size-8 items-center justify-center rounded-full bg-background/90 shadow ring-1 ring-border hover:bg-background focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                className="group absolute top-0 right-0 flex size-11 items-center justify-center focus-visible:outline-none"
               >
-                <X aria-hidden className="size-4" />
+                <span className="flex size-8 items-center justify-center rounded-full bg-background/90 shadow ring-1 ring-border group-hover:bg-background group-focus-visible:ring-3 group-focus-visible:ring-ring/50">
+                  <X aria-hidden className="size-4" />
+                </span>
               </button>
             </li>
           ))}
@@ -169,6 +179,7 @@ export function NewRequestForm() {
               <button
                 type="button"
                 id="photos-field"
+                aria-describedby={errors.photos ? "photos-error" : undefined}
                 onClick={() => fileInput.current?.click()}
                 disabled={submitting}
                 className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-sm text-muted-foreground hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
@@ -188,7 +199,11 @@ export function NewRequestForm() {
           onChange={onPickPhotos}
         />
         <p className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 5 MB each.</p>
-        {errors.photos && <p className="text-sm text-destructive">{errors.photos}</p>}
+        {errors.photos && (
+          <p id="photos-error" role="alert" className="text-sm text-destructive">
+            {errors.photos}
+          </p>
+        )}
       </div>
 
       {/* Permission to enter */}
@@ -239,6 +254,7 @@ export function NewRequestForm() {
           onChange={(e) => setAccessNotes(e.target.value)}
           disabled={submitting}
           aria-invalid={!!errors.accessNotes}
+          aria-describedby={errors.accessNotes ? "accessNotes-error" : undefined}
           placeholder="e.g. Dog in the bedroom. Best time: after 5 pm."
           className="text-base"
         />
@@ -247,7 +263,11 @@ export function NewRequestForm() {
             {accessNotes.trim().length} / {ACCESS_NOTES_MAX}
           </span>
         </div>
-        {errors.accessNotes && <p className="text-sm text-destructive">{errors.accessNotes}</p>}
+        {errors.accessNotes && (
+          <p id="accessNotes-error" className="text-sm text-destructive">
+            {errors.accessNotes}
+          </p>
+        )}
       </div>
 
       {submitError && (

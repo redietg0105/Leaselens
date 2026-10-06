@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, PencilLine } from "lucide-react";
+import { CheckCircle2, Loader2, PencilLine } from "lucide-react";
 import {
   CATEGORY_SHORT,
   CategorySchema,
@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiPost, ApiError } from "@/lib/api";
+
+type ErrorField = "category" | "reason" | "confirm";
 
 const URGENCY_WORD: Record<Urgency, string> = { EMERGENCY: "Emergency", URGENT: "Urgent", ROUTINE: "Routine" };
 
@@ -35,7 +37,24 @@ export function OverrideForm({
   const [reason, setReason] = useState("");
   const [confirmLower, setConfirmLower] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which field the error is about: it gets aria-invalid, points at the message, and takes focus.
+  const [errorField, setErrorField] = useState<ErrorField | null>(null);
+  const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const categoryRef = useRef<HTMLSelectElement>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
+  const savedRef = useRef<HTMLParagraphElement>(null);
+
+  function fail(message: string, field: ErrorField | null) {
+    setError(message);
+    setErrorField(field);
+    setSaved(false);
+    const target = field === "category" ? categoryRef : field === "reason" ? reasonRef : field === "confirm" ? confirmRef : null;
+    target?.current?.focus();
+  }
+  const invalid = (field: ErrorField) =>
+    errorField === field ? ({ "aria-invalid": true, "aria-describedby": "override-error" } as const) : {};
 
   const lowersEmergency = urgency === "EMERGENCY" && newUrgency !== "" && newUrgency !== "EMERGENCY";
 
@@ -49,26 +68,32 @@ export function OverrideForm({
       confirmLowerEmergency: lowersEmergency ? confirmLower : undefined,
     });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Check the form.");
+      const issue = parsed.error.issues[0];
+      // "Nothing changed" has no field path; it's about the choices, so focus the first one.
+      fail(issue?.message ?? "Check the form.", issue?.path[0] === "reason" ? "reason" : "category");
       return;
     }
     if (lowersEmergency && reason.trim().length < LOWER_EMERGENCY_REASON_MIN) {
-      setError(`Lowering an emergency needs a reason of at least ${LOWER_EMERGENCY_REASON_MIN} characters.`);
+      fail(`Lowering an emergency needs a reason of at least ${LOWER_EMERGENCY_REASON_MIN} characters.`, "reason");
       return;
     }
     if (lowersEmergency && !confirmLower) {
-      setError("Tick the box to confirm you want to lower an emergency.");
+      fail("Tick the box to confirm you want to lower an emergency.", "confirm");
       return;
     }
     setSaving(true);
     setError(null);
+    setErrorField(null);
     try {
       await apiPost(`/work-orders/${workOrderId}/override`, parsed.data);
       setReason("");
       setConfirmLower(false);
+      setSaved(true);
       router.refresh();
+      // The new entry appears in the history; focus the confirmation so it's announced and the user knows.
+      requestAnimationFrame(() => savedRef.current?.focus());
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Couldn't save the change. Please try again.");
+      fail(err instanceof ApiError ? err.message : "Couldn't save the change. Please try again.", null);
     } finally {
       setSaving(false);
     }
@@ -87,10 +112,12 @@ export function OverrideForm({
           </label>
           <select
             id="override-category"
+            ref={categoryRef}
+            {...invalid("category")}
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value as Category)}
             disabled={saving}
-            className="h-9 rounded-lg border bg-background px-2 text-sm"
+            className="h-9 rounded-lg border border-input bg-background px-2 text-sm max-sm:min-h-11"
           >
             {!category && <option value="">Not set</option>}
             {CategorySchema.options.map((c) => (
@@ -109,7 +136,7 @@ export function OverrideForm({
             value={newUrgency}
             onChange={(e) => setNewUrgency(e.target.value as Urgency)}
             disabled={saving}
-            className="h-9 rounded-lg border bg-background px-2 text-sm"
+            className="h-9 rounded-lg border border-input bg-background px-2 text-sm max-sm:min-h-11"
           >
             {!urgency && <option value="">Not set</option>}
             {UrgencySchema.options.map((u) => (
@@ -124,6 +151,8 @@ export function OverrideForm({
         <Label htmlFor="override-reason">Reason (required)</Label>
         <Textarea
           id="override-reason"
+          ref={reasonRef}
+          {...invalid("reason")}
           rows={3}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -140,6 +169,8 @@ export function OverrideForm({
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
+              ref={confirmRef}
+              {...invalid("confirm")}
               checked={confirmLower}
               onChange={(e) => setConfirmLower(e.target.checked)}
               disabled={saving}
@@ -150,8 +181,14 @@ export function OverrideForm({
         </div>
       )}
       {error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p id="override-error" role="alert" className="text-sm text-destructive">
           {error}
+        </p>
+      )}
+      {saved && !error && (
+        <p ref={savedRef} tabIndex={-1} role="status" className="flex items-center gap-2 text-sm font-medium text-green-800 outline-none">
+          <CheckCircle2 aria-hidden className="size-4" />
+          Change saved. It&apos;s at the top of the triage history.
         </p>
       )}
       <Button type="submit" className="h-10 w-full" variant={lowersEmergency ? "destructive" : "default"} disabled={saving}>

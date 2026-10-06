@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { FlaskConical, Loader2, LogIn, MailCheck } from "lucide-react";
 import {
@@ -27,6 +27,11 @@ type State =
 export function SignInForm({ demoAccounts }: { demoAccounts: readonly DemoAccount[] | null }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
+  const sentHeading = useRef<HTMLHeadingElement>(null);
+  // The form is replaced by "Check your email": move focus there so it's read out and Tab continues from it.
+  useEffect(() => {
+    if (state.kind === "sent") sentHeading.current?.focus();
+  }, [state.kind]);
   // True after "Use a different email": the form comes back empty with the cursor in the email field.
   const [startOver, setStartOver] = useState(false);
 
@@ -47,7 +52,9 @@ export function SignInForm({ demoAccounts }: { demoAccounts: readonly DemoAccoun
       <div className="space-y-4">
         <div role="status" className="space-y-4 rounded-lg border p-6 text-center">
           <MailCheck aria-hidden className="mx-auto size-8 text-primary" />
-          <h2 className="text-lg font-medium">Check your email</h2>
+          <h2 ref={sentHeading} tabIndex={-1} className="text-lg font-medium outline-none">
+            Check your email
+          </h2>
           <p className="text-sm text-muted-foreground">{REQUEST_LINK_MESSAGE}</p>
           <Button
             variant="outline"
