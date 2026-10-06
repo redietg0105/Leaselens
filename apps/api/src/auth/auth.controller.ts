@@ -14,7 +14,7 @@ import {
 } from '@leaselens/shared';
 import type { CookieOptions, Request, Response } from 'express';
 import { parseBody } from '../common/parse-body';
-import { isDemoMode } from '../config/demo';
+import { isDemoRequest } from '../config/demo';
 import { AuthService } from './auth.service';
 import type { AuthUser } from './auth.types';
 import { ALL_ROLES, CurrentUser, Public, Roles } from './decorators';
@@ -44,18 +44,20 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 15 * MINUTE } })
   @Post('auth/request-link')
   @HttpCode(200)
-  async requestLink(@Body() body: unknown): Promise<RequestLinkResponse> {
+  async requestLink(@Body() body: unknown, @Req() req: Request): Promise<RequestLinkResponse> {
     const { email } = parseBody(RequestLinkSchema, body, 'Enter a valid email address.');
-    const { demoSignInUrl } = await this.auth.requestLink(email);
+    const { demoSignInUrl, demoLimitReached } = await this.auth.requestLink(email, req.ip);
     // Outside demo mode (and for unknown emails) this is always exactly { message }.
-    return demoSignInUrl ? { message: REQUEST_LINK_MESSAGE, demo: { signInUrl: demoSignInUrl } } : { message: REQUEST_LINK_MESSAGE };
+    if (demoSignInUrl) return { message: REQUEST_LINK_MESSAGE, demo: { signInUrl: demoSignInUrl } };
+    if (demoLimitReached) return { message: REQUEST_LINK_MESSAGE, demo: { limitReached: true } };
+    return { message: REQUEST_LINK_MESSAGE };
   }
 
-  /** Whether demo mode is on and, only then, the demo accounts for the sign-in page. */
+  /** Whether demo mode is on (for this local client) and, only then, the demo accounts for the sign-in page. */
   @Public()
   @Get('auth/demo')
-  demo(): DemoInfo {
-    return isDemoMode() ? { enabled: true, accounts: [...DEMO_ACCOUNTS] } : { enabled: false };
+  demo(@Req() req: Request): DemoInfo {
+    return isDemoRequest(req.ip) ? { enabled: true, accounts: [...DEMO_ACCOUNTS] } : { enabled: false };
   }
 
   @Public()

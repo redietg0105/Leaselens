@@ -60,10 +60,21 @@ export const DEMO_ACCOUNTS = [
 ] as const satisfies readonly { role: Role; label: string; email: string; name: string }[];
 export type DemoAccount = (typeof DEMO_ACCOUNTS)[number];
 
+/** Sign-in links per account per MAGIC_LINK_TTL_MINUTES. Extra requests get no new link. */
+export const LINKS_PER_EMAIL_WINDOW = 3;
+
+/** Demo mode only: shown when a demo account asked for too many links (instead of a silent "Check your email"). */
+export const DEMO_LIMIT_MESSAGE = `Demo mode: this account already got ${LINKS_PER_EMAIL_WINDOW} sign-in links in the last ${MAGIC_LINK_TTL_MINUTES} minutes, so no new one was made. Wait a few minutes or pick another demo account.`;
+
 export const RequestLinkResponseSchema = z.object({
   message: z.string(),
-  /** Only in demo mode, only for a known account: the link that would have been emailed. */
-  demo: z.object({ signInUrl: z.url() }).optional(),
+  /**
+   * Only in demo mode, only for a known account and a local client: the link that would have been
+   * emailed — or, over the per-account limit, `limitReached` so the page can say so.
+   */
+  demo: z
+    .union([z.object({ signInUrl: z.url() }), z.object({ limitReached: z.literal(true) })])
+    .optional(),
 });
 export type RequestLinkResponse = z.infer<typeof RequestLinkResponseSchema>;
 

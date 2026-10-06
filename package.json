@@ -18,10 +18,12 @@
     "db:migrate": "npm run db:migrate -w @leaselens/api",
     "db:seed": "npm run db:seed -w @leaselens/api",
     "db:studio": "npm run db:studio -w @leaselens/api",
-    "typecheck": "npm run build -w @leaselens/shared && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "typecheck": "npm run build -w @leaselens/shared && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit && tsc -p e2e/tsconfig.json",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "concurrently": "^9.1.2",
     "typescript": "^5.7.3"
   },

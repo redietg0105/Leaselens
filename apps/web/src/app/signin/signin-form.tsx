@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { FlaskConical, Loader2, LogIn, MailCheck } from "lucide-react";
 import {
+  DEMO_LIMIT_MESSAGE,
   REQUEST_LINK_MESSAGE,
   RequestLinkResponseSchema,
   type DemoAccount,
@@ -17,7 +18,7 @@ import { apiPost, ApiError } from "@/lib/api";
 type State =
   | { kind: "idle" }
   | { kind: "sending" }
-  | { kind: "sent"; demoSignInUrl: string | null }
+  | { kind: "sent"; demoSignInUrl: string | null; demoLimitReached: boolean }
   | { kind: "error"; message: string };
 
 /**
@@ -40,7 +41,12 @@ export function SignInForm({ demoAccounts }: { demoAccounts: readonly DemoAccoun
     setState({ kind: "sending" });
     try {
       const res = RequestLinkResponseSchema.safeParse(await apiPost<unknown>("/auth/request-link", { email }));
-      setState({ kind: "sent", demoSignInUrl: res.success ? (res.data.demo?.signInUrl ?? null) : null });
+      const demo = res.success ? res.data.demo : undefined;
+      setState({
+        kind: "sent",
+        demoSignInUrl: demo && "signInUrl" in demo ? demo.signInUrl : null,
+        demoLimitReached: !!demo && "limitReached" in demo,
+      });
     } catch (err) {
       setState({ kind: "error", message: err instanceof ApiError ? err.message : "Something went wrong." });
     }
@@ -69,6 +75,15 @@ export function SignInForm({ demoAccounts }: { demoAccounts: readonly DemoAccoun
           </Button>
         </div>
         {state.demoSignInUrl && <DemoSignIn signInUrl={state.demoSignInUrl} />}
+        {state.demoLimitReached && (
+          <p
+            role="status"
+            className="flex items-start gap-2 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-50"
+          >
+            <FlaskConical aria-hidden className="mt-0.5 size-4 shrink-0" />
+            {DEMO_LIMIT_MESSAGE}
+          </p>
+        )}
       </div>
     );
   }

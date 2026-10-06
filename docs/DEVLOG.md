@@ -480,3 +480,43 @@ when rate-limited; it now waits for "Check your email".
 **Checks:** audit after: no issues on any of the 39 page states. KB-1–18 and RS-1–13 re-run: all Pass. npm run check.
 
 **Time spent:** ~2.5 h
+
+## 2026-10-05 — Session 16: bug DM-R1 — demo buttons said "Check your email" instead of signing in
+
+**Prompt:** "Regression: on the sign-in page the demo account buttons show, but clicking one says the link was
+sent to my email instead of signing me in… Find the root cause before changing anything… git log/bisect… client
+IP… TRUST_PROXY… whether the dev servers you restarted loaded the same .env… Fix it without weakening the
+production safeguards… regression test that covers the web-to-API demo sign-in path…"
+
+**Investigation**
+- The API saw demo mode: `GET /auth/demo` → enabled; `.env` (checked as true/false only, never printed): DEMO_MODE
+  on, NODE_ENV unset, WEB_URL on localhost with origin http://localhost:3000, TRUST_PROXY unset; unchanged since
+  Oct 4. The restarted servers loaded the same file.
+- Client IP / TRUST_PROXY: demo mode did not depend on the client address at all; TRUST_PROXY only keys the rate
+  limits. The CSRF Origin check matched WEB_URL.
+- Bisect: the commit before the security audit (8d02569) and HEAD, run with the same .env against the same
+  database, behave identically — a link for an account under its limit, none for one over it. No commit broke it.
+- Root cause: the per-account limit (3 sign-in links per 15 min) was exhausted. My checklist / accessibility test
+  scripts had created sign-in tokens directly in the database for the demo accounts (tenant: 39 in 2 h,
+  coordinator 26, vendor 10), and those count toward the limit. Over the limit, by design, the API answered with
+  the same "If that email belongs to an account…" response and no link — and in demo mode, where nothing is
+  emailed, the page showed a dead-end "Check your email".
+
+**Fix**
+- Demo mode only: a known account over its limit gets `demo: { limitReached: true }` and the page shows "Demo
+  mode: this account already got 3 sign-in links in the last 15 minutes…". Outside demo mode and for unknown
+  emails the response is unchanged (still identical for everyone).
+- New safeguard (requested): demo links and the demo-accounts list only for a local client (loopback,
+  private / link-local, IPv4-mapped forms like ::ffff:127.0.0.1 unwrapped) — in addition to the NODE_ENV and
+  WEB_URL checks.
+- Removed the 81 sign-in tokens my scripts had created for the demo accounts in the last 3 hours.
+
+**Tests:** API: the web app's exact sign-in path (demo list → request-link with the browser's Origin /
+Sec-Fetch-Site → shared schema → verify → cookie → /me), the limit notice, internet vs Wi-Fi client, 16 address
+forms; 3 fail on the old code. Browser: `npm run test:e2e` (new; @playwright/test, Edge) signs in with the Tenant
+and Vendor demo buttons on the running app — passes. npm run check: 344 tests pass.
+
+**Note:** `npm audit` now also lists 20 moderate findings from a new `sprintf-js` advisory in Jest's tooling
+(already installed, not from this change).
+
+**Time spent:** ~1.5 h

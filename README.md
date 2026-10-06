@@ -113,9 +113,10 @@ Run from the repo root.
 | `npm run dev` | Builds shared code, then runs shared (watch), API (:4100) and web (:3000) together |
 | `npm run build` | Production build of shared, API and web |
 | `npm test` | All API tests (Jest) — no network, no database needed |
-| `npm run typecheck` | TypeScript check of shared, API (incl. tests) and web |
+| `npm run typecheck` | TypeScript check of shared, API (incl. tests), web and the browser tests |
 | `npm run lint` | ESLint for the web app |
 | `npm run check` | typecheck + lint + tests in one go |
+| `npm run test:e2e` | Browser tests (Edge) against the **running** app — `npm run dev` with `DEMO_MODE="on"`; signs in with the demo buttons |
 | `npm run db:migrate` | Apply / create Prisma migrations (uses `DIRECT_URL`) |
 | `npm run db:seed` | **Wipe** the database and load demo data |
 | `npm run db:studio` | Browse the tables in Prisma Studio (http://localhost:5555) |
@@ -145,12 +146,17 @@ DEMO_MODE="on"
 - The sign-in page shows the five demo accounts as one-click buttons that fill in the email.
 - After **Email me a sign-in link**, a highlighted box says *"Demo mode — in the live app this link is emailed"*
   with a **Sign in now** button — no inbox or terminal needed.
-- Unknown emails still get exactly the normal response (no link), and the rate limits still apply.
+- Unknown emails still get exactly the normal response (no link), and the rate limits still apply: 5 link requests
+  per address and 3 links per account per 15 minutes. Past an account's limit the page says so (*"Demo mode: this
+  account already got 3 sign-in links…"*) instead of a plain "Check your email" — wait a few minutes or pick
+  another demo account.
 - **Trade-off (accepted for local demos):** because known accounts get a link and unknown ones don't, demo mode
   reveals which emails have an account. Never turn it on where real people's accounts exist.
 - It can't reach production: demo mode only works when `NODE_ENV` isn't `production` and `WEB_URL` is localhost
   or a private network address (e.g. `http://192.168.1.20:3000` for a phone on your Wi-Fi). The API refuses to
   start with `DEMO_MODE="on"` otherwise. The default is `"off"`.
+- Each request must also come from this computer or the local network (loopback or a private address, e.g. a
+  phone on your Wi-Fi); requests from any other address get the normal response and no demo accounts.
 
 The demo data has 4 buildings, 40 units, 8 vendors across all trades and 12 work orders covering every urgency
 and status, including three emergencies (ceiling leak, gas smell, sparking outlet).
@@ -255,13 +261,16 @@ and the keyboard / screen-size items in [the testing checklist](docs/TESTING_CHE
 
 ## Testing
 
-`npm test` runs **323 API tests** in about 15 seconds — no network or database: the API runs against an
+`npm test` runs **344 API tests** in about 15 seconds — no network or database: the API runs against an
 in-memory fake of Prisma and a fake Gemini that records exactly what would be sent. Covered: sign-in and
 sessions, role guards, tenant and vendor isolation, validation and photo rules, every emergency rule and the
 heating season, AI success/failure/timeout/invalid output, privacy and prompt injection, follow-ups, overrides,
 vendor ranking and auto-dispatch limits, vendor completion, demo mode (never a link outside demo mode, in production or for unknown emails), concurrent changes, cross-site writes, rate limits, personal data in logs, the web CSP, request ids, log
 redaction and settings checks.
 Several safety tests were checked by deliberately breaking the rule they guard (see DEVLOG).
+
+`npm run test:e2e` adds browser tests (Playwright, Edge) that drive the running app: the demo sign-in from the
+button on the sign-in page to the signed-in home page.
 
 Each feature was also checked in a real browser (Edge, desktop and 390 px phone width) against Neon, using
 temporary scripts that weren't committed.

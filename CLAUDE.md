@@ -33,3 +33,4 @@ Read `docs/SPEC.md` before any task. It is the source of truth for features, dat
 - `npm run db:studio` — Prisma Studio on http://localhost:5555
 - `npm run triage:once -w @leaselens/api -- <workOrderId> [--rerun]` — one REAL Gemini triage call, prints what was sent/received
 - `npm test` — API tests; `npm run typecheck`; `npm run lint`; `npm run check` — all three
+- `npm run test:e2e` — browser tests (Edge) against the running app (`npm run dev`, `DEMO_MODE="on"`)
