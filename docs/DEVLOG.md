@@ -520,3 +520,31 @@ and Vendor demo buttons on the running app — passes. npm run check: 344 tests 
 (already installed, not from this change).
 
 **Time spent:** ~1.5 h
+
+## 2026-10-05 — Session 17: bug B-10 — field errors stayed after the value was fixed
+
+**Prompt:** "On the tenant New request form, if I type a description that's too short and get 'at least 10
+characters', the message stays even after I type more than 10 characters. Fix it so field errors update as I type
+once a field has shown an error… Check every other form… Add a test… plus a checklist item for 'error clears when
+fixed'… don't start, stop or restart [the servers]… Don't reset or change any data. Use at most ONE sign-in link
+for the Tenant demo account…"
+
+**Root cause:** form errors were computed only on submit; the change handlers updated the value but never
+re-checked a field that was showing an error. Affected: New request (description, access notes), sign-in email,
+override form (category, urgency, reason, confirm box), vendor completion note. Already correct: follow-up answers
+(choosing an answer clears its error), New request permission and photos.
+
+**Fix:** shared `refreshShownErrors(shown, schema, values, fields)` re-checks only fields that currently show an
+error, with the same schema as submit — the message and `aria-invalid` go as soon as the value is valid, and
+typing never shows a new error before Submit. The override form's checks moved to shared `checkOverrideForm`,
+used on submit and while editing. Server errors (e.g. 409) are left until the next submit.
+
+**Tests:** `form-errors.spec.ts` (9 unit tests); browser test `e2e/form-errors.spec.ts` (sign-in email signed out,
+New request after one Tenant demo sign-in, never submits valid data) — passes, and the email test fails on the old
+sign-in form. Checklist NR-47 added (305 items: 300 Pass, 0 Fail, 5 Manual). One Tenant sign-in link used; no
+data changed; the running servers were not restarted (the web dev server picked up the change).
+
+**Note:** the first `npm run check` had 2 failing tests in 2 suites; not captured before re-running, and not
+reproduced in 5 further runs (3 × jest, 2 × npm run check). Treated as a flaky test to watch, not fixed.
+
+**Time spent:** ~1 h

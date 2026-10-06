@@ -7,6 +7,8 @@ import {
   DEMO_LIMIT_MESSAGE,
   REQUEST_LINK_MESSAGE,
   RequestLinkResponseSchema,
+  RequestLinkSchema,
+  refreshShownErrors,
   type DemoAccount,
   type VerifyLinkResponse,
 } from "@leaselens/shared";
@@ -102,7 +104,13 @@ export function SignInForm({ demoAccounts }: { demoAccounts: readonly DemoAccoun
             inputMode="email"
             required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              // The error came from the API on Submit; clear it as soon as the address is valid.
+              if (state.kind === "error" && !refreshShownErrors({ email: state.message }, RequestLinkSchema, { email: e.target.value }, ["email"]).email) {
+                setState({ kind: "idle" });
+              }
+            }}
             autoFocus={startOver}
             disabled={sending}
             aria-invalid={state.kind === "error"}

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ImagePlus, Loader2, X } from "lucide-react";
-import { ALLOWED_PHOTO_TYPES, CompleteJobSchema } from "@leaselens/shared";
+import { ALLOWED_PHOTO_TYPES, CompleteJobSchema, refreshShownErrors } from "@leaselens/shared";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -71,7 +71,11 @@ export function CompleteJobForm({ jobId }: { jobId: string }) {
           id="note-field"
           rows={4}
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onChange={(e) => {
+            setNote(e.target.value);
+            // Once the note shows an error, re-check it as the vendor types; the message goes when it's valid.
+            if (noteError) setNoteError(refreshShownErrors({ note: noteError }, CompleteJobSchema, { note: e.target.value }, ["note"]).note ?? null);
+          }}
           disabled={sending}
           aria-invalid={!!noteError}
           aria-describedby={noteError ? "note-error" : undefined}

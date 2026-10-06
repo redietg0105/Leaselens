@@ -132,6 +132,6 @@ Checked in the audit and found sound, so no change was needed:
 
 | Command | What it checks |
 |---|---|
-| `npm run check` | Typecheck, lint and the 344 API tests, including every security test above |
+| `npm run check` | Typecheck, lint and the 353 API tests, including every security test above |
 | `npm run test:e2e` | Demo sign-in in a real browser against the running app (`npm run dev`, `DEMO_MODE="on"`) |
 | `npm audit` / `npm audit --omit=dev` | Dependency findings (expected: the tooling items in section 3) |

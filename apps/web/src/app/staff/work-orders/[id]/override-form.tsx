@@ -6,18 +6,19 @@ import { CheckCircle2, Loader2, PencilLine } from "lucide-react";
 import {
   CATEGORY_SHORT,
   CategorySchema,
+  checkOverrideForm,
   LOWER_EMERGENCY_REASON_MIN,
-  OverrideSchema,
+  lowersEmergency as lowersEmergencyCheck,
   UrgencySchema,
   type Category,
+  type OverrideField,
+  type OverrideFormValues,
   type Urgency,
 } from "@leaselens/shared";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiPost, ApiError } from "@/lib/api";
-
-type ErrorField = "category" | "reason" | "confirm";
 
 const URGENCY_WORD: Record<Urgency, string> = { EMERGENCY: "Emergency", URGENT: "Urgent", ROUTINE: "Routine" };
 
@@ -38,7 +39,7 @@ export function OverrideForm({
   const [confirmLower, setConfirmLower] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Which field the error is about: it gets aria-invalid, points at the message, and takes focus.
-  const [errorField, setErrorField] = useState<ErrorField | null>(null);
+  const [errorField, setErrorField] = useState<OverrideField | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const categoryRef = useRef<HTMLSelectElement>(null);
@@ -46,46 +47,56 @@ export function OverrideForm({
   const confirmRef = useRef<HTMLInputElement>(null);
   const savedRef = useRef<HTMLParagraphElement>(null);
 
-  function fail(message: string, field: ErrorField | null) {
+  function fail(message: string, field: OverrideField | null) {
     setError(message);
     setErrorField(field);
     setSaved(false);
     const target = field === "category" ? categoryRef : field === "reason" ? reasonRef : field === "confirm" ? confirmRef : null;
     target?.current?.focus();
   }
-  const invalid = (field: ErrorField) =>
+  const invalid = (field: OverrideField) =>
     errorField === field ? ({ "aria-invalid": true, "aria-describedby": "override-error" } as const) : {};
 
-  const lowersEmergency = urgency === "EMERGENCY" && newUrgency !== "" && newUrgency !== "EMERGENCY";
+  const lowersEmergency = lowersEmergencyCheck({ urgency, newUrgency });
+  const values = (changed: Partial<OverrideFormValues> = {}): OverrideFormValues => ({
+    category,
+    urgency,
+    newCategory,
+    newUrgency,
+    reason,
+    confirmLower,
+    ...changed,
+  });
+
+  /**
+   * Once a field shows an error, re-check as the coordinator edits (same rules as Submit): a fixed problem
+   * disappears straight away, a remaining one updates its message. Errors from the server are left as they are.
+   */
+  function recheck(changed: Partial<OverrideFormValues>) {
+    if (!errorField) return;
+    const result = checkOverrideForm(values(changed));
+    if (result.ok) {
+      setError(null);
+      setErrorField(null);
+    } else {
+      setError(result.message);
+      setErrorField(result.field);
+    }
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
-    const parsed = OverrideSchema.safeParse({
-      category: newCategory && newCategory !== category ? newCategory : undefined,
-      urgency: newUrgency && newUrgency !== urgency ? newUrgency : undefined,
-      reason,
-      confirmLowerEmergency: lowersEmergency ? confirmLower : undefined,
-    });
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      // "Nothing changed" has no field path; it's about the choices, so focus the first one.
-      fail(issue?.message ?? "Check the form.", issue?.path[0] === "reason" ? "reason" : "category");
-      return;
-    }
-    if (lowersEmergency && reason.trim().length < LOWER_EMERGENCY_REASON_MIN) {
-      fail(`Lowering an emergency needs a reason of at least ${LOWER_EMERGENCY_REASON_MIN} characters.`, "reason");
-      return;
-    }
-    if (lowersEmergency && !confirmLower) {
-      fail("Tick the box to confirm you want to lower an emergency.", "confirm");
+    const checked = checkOverrideForm(values());
+    if (!checked.ok) {
+      fail(checked.message, checked.field);
       return;
     }
     setSaving(true);
     setError(null);
     setErrorField(null);
     try {
-      await apiPost(`/work-orders/${workOrderId}/override`, parsed.data);
+      await apiPost(`/work-orders/${workOrderId}/override`, checked.data);
       setReason("");
       setConfirmLower(false);
       setSaved(true);
@@ -115,7 +126,10 @@ export function OverrideForm({
             ref={categoryRef}
             {...invalid("category")}
             value={newCategory}
-            onChange={(e) => setNewCategory(e.target.value as Category)}
+            onChange={(e) => {
+              setNewCategory(e.target.value as Category);
+              recheck({ newCategory: e.target.value as Category });
+            }}
             disabled={saving}
             className="h-9 rounded-lg border border-input bg-background px-2 text-sm max-sm:min-h-11"
           >
@@ -134,7 +148,10 @@ export function OverrideForm({
           <select
             id="override-urgency"
             value={newUrgency}
-            onChange={(e) => setNewUrgency(e.target.value as Urgency)}
+            onChange={(e) => {
+              setNewUrgency(e.target.value as Urgency);
+              recheck({ newUrgency: e.target.value as Urgency });
+            }}
             disabled={saving}
             className="h-9 rounded-lg border border-input bg-background px-2 text-sm max-sm:min-h-11"
           >
@@ -155,7 +172,10 @@ export function OverrideForm({
           {...invalid("reason")}
           rows={3}
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) => {
+            setReason(e.target.value);
+            recheck({ reason: e.target.value });
+          }}
           disabled={saving}
           placeholder="e.g. Photo shows water reaching the outlet."
         />
@@ -172,7 +192,10 @@ export function OverrideForm({
               ref={confirmRef}
               {...invalid("confirm")}
               checked={confirmLower}
-              onChange={(e) => setConfirmLower(e.target.checked)}
+              onChange={(e) => {
+                setConfirmLower(e.target.checked);
+                recheck({ confirmLower: e.target.checked });
+              }}
               disabled={saving}
               className="mt-0.5 size-4"
             />

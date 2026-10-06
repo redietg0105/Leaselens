@@ -116,7 +116,7 @@ Run from the repo root.
 | `npm run typecheck` | TypeScript check of shared, API (incl. tests), web and the browser tests |
 | `npm run lint` | ESLint for the web app |
 | `npm run check` | typecheck + lint + tests in one go |
-| `npm run test:e2e` | Browser tests (Edge) against the **running** app — `npm run dev` with `DEMO_MODE="on"`; signs in with the demo buttons |
+| `npm run test:e2e` | Browser tests (Edge) against the **running** app — `npm run dev` with `DEMO_MODE="on"`; demo sign-in and form errors clearing when fixed |
 | `npm run db:migrate` | Apply / create Prisma migrations (uses `DIRECT_URL`) |
 | `npm run db:seed` | **Wipe** the database and load demo data |
 | `npm run db:studio` | Browse the tables in Prisma Studio (http://localhost:5555) |
@@ -261,7 +261,7 @@ and the keyboard / screen-size items in [the testing checklist](docs/TESTING_CHE
 
 ## Testing
 
-`npm test` runs **344 API tests** in about 15 seconds — no network or database: the API runs against an
+`npm test` runs **353 API tests** in about 15 seconds — no network or database: the API runs against an
 in-memory fake of Prisma and a fake Gemini that records exactly what would be sent. Covered: sign-in and
 sessions, role guards, tenant and vendor isolation, validation and photo rules, every emergency rule and the
 heating season, AI success/failure/timeout/invalid output, privacy and prompt injection, follow-ups, overrides,

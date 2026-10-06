@@ -12,6 +12,7 @@ import {
   EntryPermissionSchema,
   MAX_PHOTOS,
   PHOTO_ERRORS,
+  refreshShownErrors,
   type EntryPermission,
   type WorkOrderDetail,
 } from "@leaselens/shared";
@@ -78,6 +79,12 @@ export function NewRequestForm() {
     setErrors((prev) => ({ ...prev, photos: undefined }));
   }
 
+  /** Once a field shows an error, re-check it as the user types: the message goes as soon as it's valid. */
+  function recheck(changed: Partial<{ description: string; accessNotes: string }>) {
+    const values = { description, entryPermission: entryPermission || undefined, accessNotes, ...changed };
+    setErrors((prev) => refreshShownErrors(prev, CreateWorkOrderSchema, values, ["description", "accessNotes"]));
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
@@ -129,7 +136,10 @@ export function NewRequestForm() {
           rows={5}
           maxLength={DESCRIPTION_MAX + 200}
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => {
+            setDescription(e.target.value);
+            recheck({ description: e.target.value });
+          }}
           disabled={submitting}
           aria-invalid={!!errors.description}
           aria-describedby="description-help description-error"
@@ -251,7 +261,10 @@ export function NewRequestForm() {
           name="accessNotes"
           rows={2}
           value={accessNotes}
-          onChange={(e) => setAccessNotes(e.target.value)}
+          onChange={(e) => {
+            setAccessNotes(e.target.value);
+            recheck({ accessNotes: e.target.value });
+          }}
           disabled={submitting}
           aria-invalid={!!errors.accessNotes}
           aria-describedby={errors.accessNotes ? "accessNotes-error" : undefined}

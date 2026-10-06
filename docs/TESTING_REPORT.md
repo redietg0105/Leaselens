@@ -10,13 +10,13 @@ are given for every fix.
 
 | Measure | Result |
 |---|---|
-| Manual testing checklist | 304 items across 13 sections |
+| Manual testing checklist | 305 items across 13 sections (NR-47 added for bug B-10) |
 | First full run of the checklist | 296 Pass · 3 Fail · 5 Manual |
-| After the fixes and re-runs | **299 Pass · 0 Fail · 5 Manual** |
-| Automated API tests (`npm test`) | **344 tests in 17 suites, all passing** (no network, no database) |
-| Browser tests (`npm run test:e2e`) | **2 tests**, passing against the running app |
+| After the fixes and re-runs | **300 Pass · 0 Fail · 5 Manual** |
+| Automated API tests (`npm test`) | **353 tests in 18 suites, all passing** (no network, no database) |
+| Browser tests (`npm run test:e2e`) | **4 tests**, passing against the running app |
 | Accessibility audit | 39 page states; issues found before the pass, none after |
-| Bugs found and fixed | 9 in the testing phase (section 4.1) + 13 during development (section 4.2) = **22** |
+| Bugs found and fixed | 10 in the testing phase (section 4.1) + 13 during development (section 4.2) = **23** |
 | Security vulnerabilities resolved | 10 (see [`SECURITY_CHECKLIST.md`](SECURITY_CHECKLIST.md)) |
 
 `npm run check` (TypeScript for shared, API, web and the browser tests, ESLint for the web app, and all API
@@ -31,7 +31,7 @@ test items).
 |---|---|---|---|---|---|---|
 | 1 | Signed out | Landing page, sign-in form, demo mode, confirm sign-in, reconnecting and 404 pages | 38 | 38 | 0 | 0 |
 | 2 | Sign-in links and sessions | One-time links, expiry, reuse, sign-out, 7-day sessions, two browsers | 13 | 13 | 0 | 0 |
-| 3 | Tenant | Header, "My requests", new request (fields, photos, permission), request detail, follow-up questions | 79 | 78 | 0 | 1 |
+| 3 | Tenant | Header, "My requests", new request (fields, photos, permission, errors clearing when fixed), request detail, follow-up questions | 80 | 79 | 0 | 1 |
 | 4 | Vendor | "My jobs", job page, mark complete with note and photo | 29 | 29 | 0 | 0 |
 | 5 | Coordinator / manager | Triage queue, filters, request page, overrides (incl. lowering an emergency), vendor suggestions, dispatch, auto-dispatch | 57 | 55 | 0 | 2 |
 | 6 | Leasing | Placeholder area, blocked from the queue and API | 5 | 5 | 0 | 0 |
@@ -42,7 +42,7 @@ test items).
 | 11 | API stopped | Reconnecting page, actions while offline, restart sweep, missing settings, database unreachable | 12 | 12 | 0 | 0 |
 | 12 | Gemini fails | No key, wrong key, unknown model, timeout, emergency without AI, coordinator finishing the job | 8 | 6 | 0 | 2 |
 | 13 | Odd input shown back | Script, HTML, SQL text and emoji shown as plain text everywhere; personal data and prompt injection | 8 | 8 | 0 | 0 |
-| | **Total** | | **304** | **299** | **0** | **5** |
+| | **Total** | | **305** | **300** | **0** | **5** |
 
 **Manual items (need a person or a set-up the demo data doesn't have):**
 
@@ -61,7 +61,7 @@ The three items that failed on the first run (KB-1, RS-8, SI-13) were fixed and 
 ### 3.1 Automated API tests (`npm test`, part of `npm run check`)
 - Jest + supertest against the real NestJS app, with an in-memory fake of the database (Prisma) and a fake
   Gemini model that records exactly what would be sent. No network, no database, about 15 seconds.
-- 344 tests in 17 suites: sign-in and sessions, role guards, tenant and vendor isolation, validation and photo
+- 353 tests in 18 suites: sign-in and sessions, role guards, tenant and vendor isolation, validation and photo
   rules, every emergency rule, AI success / failure / timeout / invalid output, privacy and prompt injection,
   overrides, dispatch and auto-dispatch, concurrency, cross-site writes, rate limits, logging, demo mode, the web
   app's Content-Security-Policy, request ids and settings checks.
@@ -69,7 +69,7 @@ The three items that failed on the first run (KB-1, RS-8, SI-13) were fixed and 
   for each fix, e.g. 5 of 5 concurrency tests fail on the old code, 3 of the DM-R1 tests fail on the old code).
 
 ### 3.2 Automated run of the manual checklist
-- All 304 checklist items were run with Playwright scripts driving Microsoft Edge, plus direct API and database
+- All 304 original checklist items were run with Playwright scripts driving Microsoft Edge, plus direct API and database
   checks, against the developer's running app with demo mode on (web :3000, API :4100, Neon database).
 - Sign-ins used one-time tokens written directly to the database, so the rate limits were only used by the items
   that test them.
@@ -116,10 +116,11 @@ API on :4101 (started from a separate build).
 - It ran before and after the accessibility pass. The keyboard (KB-1–18) and screen-size (RS-1–13) checklist items
   were then re-run, all Pass.
 
-### 3.6 Browser regression test (Playwright)
-- `npm run test:e2e` (`e2e/demo-sign-in.spec.ts`) drives the real web app and API in Edge.
+### 3.6 Browser regression tests (Playwright)
+- `npm run test:e2e` drives the real web app and API in Edge. `e2e/form-errors.spec.ts` (bug B-10) checks that the sign-in email error and the New request errors clear as each value is fixed, without submitting a request.
+- `e2e/demo-sign-in.spec.ts` drives the demo sign-in.
 - It opens the sign-in page, clicks the **Tenant** or **Vendor** demo button, then "Email me a sign-in link", then
-  "Sign in now", and checks the signed-in home page. It is 2 tests and passes.
+  "Sign in now", and checks the signed-in home page. In total the browser suite is 4 tests, all passing.
 - It needs the app running with `DEMO_MODE="on"`, so it is not part of `npm run check`.
 
 ## 4. Bugs found and fixed
@@ -137,6 +138,7 @@ API on :4101 (started from a separate build).
 | B-07 | `npm run check` failed 2 sign-in tests on the developer's machine. | Prisma Client loads `apps/api/.env` when imported, so the developer's `DEMO_MODE="on"` leaked into the tests (test set-up bug). | A Jest setup file sets `DEMO_MODE="off"` before anything loads; demo tests turn it on themselves. | `npm run check` passes with `DEMO_MODE="on"` in `.env` | `5886e90` |
 | B-08 | On a phone the staff queue became 992 px wide when a description contained a very long unbroken word. | The phone card list is a CSS grid whose column grew to the longest word. | `grid-cols-1` lets the column shrink, so long words wrap. | RS-8 and RS-13 re-run (page overflow 0 at 390 px and 200% zoom) | `a971c10` |
 | B-09 (DM-R1) | Demo account buttons led to "Check your email" instead of the "Sign in now" box. | The per-account limit (3 sign-in links per 15 min) was used up: test scripts had created sign-in tokens for the demo accounts directly in the database, and those count. Over the limit the API, by design, gives the generic response with no link, which in demo mode (nothing is emailed) is a dead end. No commit broke demo mode: the commit before the security audit (`8d02569`) and HEAD behaved the same with the same settings and data. | Demo mode only: an account over its limit gets `limitReached` and the page explains it. Demo links now also require a local client address. The test tokens were removed. | `demo-mode.e2e`: "demo sign-in the way the web app does it", the limit notice and local-client tests (3 fail on the old code); browser test `npm run test:e2e` | `04f6424` |
+| B-10 | On the New request form, "at least 10 characters" stayed after typing more than 10 characters; the same happened in other forms. | Errors were only computed on submit; the change handlers updated the value without re-checking a field that showed an error. Affected: description and access notes (New request), sign-in email, override form (category, urgency, reason, confirm box), vendor completion note. Follow-up answers already cleared their error. | Shared `refreshShownErrors` re-checks only fields that show an error, on every change, with the same schema as submit (the message and `aria-invalid` go as soon as the value is valid, and no new error appears early); the override form uses the shared `checkOverrideForm` on submit and while editing. | `form-errors.spec.ts` (9 tests); browser test `e2e/form-errors.spec.ts` (fails on the old sign-in form); checklist NR-47 | (this commit) |
 
 ### 4.2 Development phase (before the checklist; recorded in the DEVLOG)
 

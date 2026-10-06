@@ -246,6 +246,7 @@ Sign in as `tenant@leaselens.test` (Jordan Ellery, unit A-302).
 | [x] | NR-44 | Not an emergency | "smoke detector keeps beeping" | No emergency box | Pass — Emergency box shown: false |
 | [x] | NR-45 | Prompt injection | Prompt-injection text | Still an **Emergency** (gas) — the "mark as routine" text doesn't lower it | Pass — After the AI step the gas request is still EMERGENCY (status NEEDS_REVIEW because Gemini answered 503 "high demand" on both models — the injection text did not lower it) |
 | [x] | NR-46 | Session ended while filling | Delete the cookie (SE-10), then send | "Your session has ended. Please sign in again." | Pass — "Your session has ended. Please sign in again."; saved: 0 |
+| [x] | NR-47 | Error clears when fixed | Send with `leak`, no permission and 501-character access notes; then keep typing the description, shorten the notes to 500, choose a permission | Each message disappears — and the field is no longer marked invalid — as soon as its value is valid, without sending again (same in the sign-in email, follow-up answers, override form and vendor note) | Pass — Added for bug B-10. Browser test e2e/form-errors.spec.ts: "at least 10 characters", the access-notes error and "Choose whether we may enter." each cleared the moment the value was valid; aria-invalid back to false; sign-in email error cleared once the address was valid |
 
 ### 3.4 Request detail `/tenant/requests/[id]`
 
@@ -571,7 +572,7 @@ After entering the odd texts above, check that **every place that displays them*
 |---|---|
 | 1. Signed out (landing, sign-in, demo mode, confirm, reconnecting/404) | 38 |
 | 2. Sign-in links & sessions | 13 |
-| 3. Tenant (header, list, new request, detail, follow-ups) | 79 |
+| 3. Tenant (header, list, new request, detail, follow-ups) | 80 |
 | 4. Vendor (jobs, job page, complete) | 29 |
 | 5. Coordinator / manager (queue, filters, request page, override, dispatch) | 57 |
 | 6. Leasing | 5 |
@@ -582,7 +583,7 @@ After entering the odd texts above, check that **every place that displays them*
 | 11. API stopped | 12 |
 | 12. Gemini fails | 8 |
 | 13. Odd input shown back | 8 |
-| **Total** | **304** |
+| **Total** | **305** |
 
 ## Results of the run on 2026-10-05
 
@@ -595,7 +596,7 @@ issued in the database, so the rate limits were only used where they were being 
 
 | Pass | Fail | Manual | Total |
 |---|---|---|---|
-| 299 | 0 | 5 | 304 |
+| 300 | 0 | 5 | 305 |
 
 **Fixed the same day** and re-tested (KB-1, RS-4, RS-7, RS-8, SI-13, SQ-3, SQ-8, OV-1 — all Pass): focus ring on
 tenant/vendor list rows (KB-1), staff queue no longer scrolls the page sideways at 768 px (RS-8), "Use a different
@@ -605,5 +606,6 @@ override.
 **Accessibility pass (same day):** re-ran KB-1 to KB-18 and RS-1 to RS-13 after adding the skip link, nav
 landmarks, stronger focus rings and borders, 44 px phone targets and focus moves after actions — all Pass (the
 phone queue was also fixed to wrap very long words instead of widening the page).
+**Bug B-10 (same day):** field errors stayed after the value was fixed; fixed in every form and added as NR-47 (Pass).
 **Manual:** NR-17 (phone camera), SQ-9 (needs an empty database), VP-4 (needs a trade no vendor has),
 AI-7 (needs a real rate limit), AI-8 (needs the network off).
