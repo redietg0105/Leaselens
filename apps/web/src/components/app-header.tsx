@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { homePathForRole, type Me, type Role } from "@leaselens/shared";
+import { MainNav } from "./main-nav";
 import { SignOutButton } from "./sign-out-button";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -10,12 +11,12 @@ const ROLE_LABEL: Record<Role, string> = {
   MANAGER: "Manager",
 };
 
-/** Top bar for signed-in areas: who is signed in, and sign out. */
+/** Top bar for signed-in areas: who is signed in, sign out, and the area's main links. */
 export function AppHeader({ user }: { user: Me }) {
   return (
     <header className="border-b">
-      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href={homePathForRole(user.role)} className="shrink-0 font-semibold tracking-tight">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 pt-2 sm:px-6">
+        <Link href={homePathForRole(user.role)} className="inline-flex min-h-11 shrink-0 items-center font-semibold tracking-tight">
           LeaseLens
         </Link>
         <div className="flex min-w-0 items-center gap-3">
@@ -28,6 +29,7 @@ export function AppHeader({ user }: { user: Me }) {
           <SignOutButton />
         </div>
       </div>
+      <MainNav role={user.role} />
     </header>
   );
 }

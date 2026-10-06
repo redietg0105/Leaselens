@@ -15,7 +15,7 @@ export default async function TenantHome() {
   const requests = await apiGet("/work-orders/mine", WorkOrderSummarySchema.array());
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
+    <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">My requests</h1>
         {requests.length > 0 && (

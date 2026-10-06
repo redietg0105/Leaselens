@@ -60,13 +60,16 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* 0.52 (not 0.556): small grey text stays above 4.5:1 on tinted rows and muted panels too. */
+  --muted-foreground: oklch(0.52 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Field borders: 3:1 against white so the fields themselves can be seen (WCAG 1.4.11). */
+  --input: oklch(0.6 0 0);
+  /* Focus rings: components draw ring/50; with this near-black colour that is still above 3:1. */
+  --ring: oklch(0.205 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -126,5 +129,20 @@
   }
   html {
     @apply font-sans;
+  }
+  /* <main> takes focus from the skip link (tabindex=-1); the page itself needs no ring. */
+  main:focus {
+    outline: none;
+  }
+}
+/* Respect "reduce motion": no spinning, pulsing or sliding — the content is the same, only still. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

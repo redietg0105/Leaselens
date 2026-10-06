@@ -15,7 +15,7 @@ export default async function VendorJobsPage() {
   const done = jobs.filter((j) => j.completedAt);
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
+    <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
       <h1 className="text-2xl font-semibold tracking-tight">My jobs</h1>
 
       {jobs.length === 0 ? (

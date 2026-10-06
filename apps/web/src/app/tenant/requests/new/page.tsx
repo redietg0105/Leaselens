@@ -11,7 +11,7 @@ export default async function NewRequestPage() {
   await requireTenant();
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
+    <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
       <Link href="/tenant" className={buttonVariants({ variant: "ghost", className: "-ml-2.5 self-start" })}>
         <ArrowLeft aria-hidden />
         My requests

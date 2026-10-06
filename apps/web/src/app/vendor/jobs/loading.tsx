@@ -1,7 +1,7 @@
 /** Shown while the job list loads. */
 export default function Loading() {
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6" aria-busy="true">
+    <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6" aria-busy="true">
       <span className="sr-only" role="status">
         Loading your jobs…
       </span>

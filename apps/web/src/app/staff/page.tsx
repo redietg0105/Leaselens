@@ -13,10 +13,14 @@ import { PlaceholderPage } from "@/components/placeholder-page";
 import { UrgencyBadge } from "@/components/urgency-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { formatAge } from "@/lib/format";
-import { apiGet, requireRoles } from "@/lib/session";
+import { apiGet, getCurrentUser, requireRoles } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Triage queue · LeaseLens" };
+/** The page title says what this role actually sees (leasing staff get the lease tools placeholder). */
+export async function generateMetadata(): Promise<Metadata> {
+  const user = await getCurrentUser();
+  return { title: user?.role === "LEASING" ? "Lease tools · LeaseLens" : "Triage queue · LeaseLens" };
+}
 
 const URGENCY_OPTIONS = [
   ["", "All urgencies"],
@@ -57,7 +61,7 @@ export default async function StaffHome({
   const filtered = Boolean(active.urgency || active.status);
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-6 sm:px-6">
+    <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-6 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Triage queue</h1>
@@ -68,7 +72,7 @@ export default async function StaffHome({
             <label htmlFor="filter-urgency" className="text-xs font-medium">
               Urgency
             </label>
-            <select id="filter-urgency" name="urgency" defaultValue={active.urgency ?? ""} className="h-9 rounded-lg border bg-background px-2 text-sm">
+            <select id="filter-urgency" name="urgency" defaultValue={active.urgency ?? ""} className="h-9 rounded-lg border border-input bg-background px-2 text-sm max-sm:min-h-11">
               {URGENCY_OPTIONS.map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -80,7 +84,7 @@ export default async function StaffHome({
             <label htmlFor="filter-status" className="text-xs font-medium">
               Status
             </label>
-            <select id="filter-status" name="status" defaultValue={active.status ?? ""} className="h-9 rounded-lg border bg-background px-2 text-sm">
+            <select id="filter-status" name="status" defaultValue={active.status ?? ""} className="h-9 rounded-lg border border-input bg-background px-2 text-sm max-sm:min-h-11">
               <option value="">All open</option>
               {WorkOrderStatusSchema.options
                 .filter((s) => s !== "COMPLETED" && s !== "CANCELLED")
@@ -116,7 +120,7 @@ export default async function StaffHome({
             {items.length} open {items.length === 1 ? "request" : "requests"}
           </p>
           {/* Phones: cards */}
-          <ul className="grid gap-2 md:hidden">
+          <ul className="grid grid-cols-1 gap-2 md:hidden">
             {items.map((i) => (
               <li key={i.id}>
                 <Link href={`/staff/work-orders/${i.id}`} className={cn("block rounded-lg border p-3", rowTone(i))}>
