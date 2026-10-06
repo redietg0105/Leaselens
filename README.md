@@ -9,7 +9,8 @@ the right vendor with one click — while people stay in charge of every decisio
 
 **Contents:** [Problem](#the-problem) · [Features](#what-it-does) · [Tech stack](#tech-stack) ·
 [Setup on Windows](#setup-on-windows) · [Scripts](#scripts) · [Demo accounts](#demo-accounts) ·
-[Responsible AI](#responsible-ai-rules) · [Security](#security-checklist) · [Testing](#testing) ·
+[Responsible AI](#responsible-ai-rules) · [Security](#security-checklist) · [Accessibility](#accessibility) ·
+[Testing](#testing) ·
 [Limitations](#known-limitations) · [Next phase](#next-phase) · [Troubleshooting](#troubleshooting)
 
 ---
@@ -224,6 +225,33 @@ From [CLAUDE.md](CLAUDE.md) and SPEC §4 — how each is enforced, and where it'
 - `npm audit` reports 12 high findings, all in tooling rather than code that handles requests (3 of them count as production only because `@prisma/client` lists the Prisma CLI as a peer): `braces` via ESLint/shadcn CLI (no fixed
   version exists yet) and `deepmerge-ts` via the Prisma CLI (fixed only in 8.x, which Prisma 6 doesn't accept —
   forcing it broke Prisma). Neither processes user input.
+
+## Accessibility
+
+Aimed at WCAG 2.2 AA; checked with scripted browser audits of every page (39 page states, phone and desktop)
+and the keyboard / screen-size items in [the testing checklist](docs/TESTING_CHECKLIST.md).
+
+- **Structure:** a "Skip to content" link is the first thing Tab reaches on every page; every page has a header,
+  a "Main" navigation (the current page marked with `aria-current`), one `<main>`, exactly one h1 and headings in
+  order; each page has its own title; `lang="en"`.
+- **Contrast:** all text at least 4.5:1 (3:1 for large text); field borders and focus rings at least 3:1; the
+  emergency box and badges pass. Measured against the real composited background, not guessed.
+- **Keyboard:** everything works with Tab, Shift+Tab, Enter, Space and the arrow keys; a visible focus ring on every
+  link, button and field; no keyboard traps.
+- **Focus after actions:** a failed submit moves focus to the first field with an error; after sending a request
+  focus goes to "Request sent" (or the emergency steps); after answers, approving a vendor, completing a job or
+  saving an override it goes to the confirmation; removing a photo moves to the next photo or "Add photo"; "Check
+  your email" takes focus, and "Use a different email" returns to the empty email field. (The app has no modal
+  dialogs.)
+- **Forms:** every field has a visible label; errors are linked with `aria-describedby`, fields marked
+  `aria-invalid`, and messages announced (`role="alert"` / focus); icon-only buttons have names ("Remove photo 1").
+- **Status and loading:** live regions for "reviewing your request", reconnecting, saved/sent messages; loading
+  placeholders are marked `aria-busy` with a spoken "Loading…".
+- **Phones and zoom:** tap targets at least 44 × 44 px on phones; no sideways scrolling from 390 px up, in
+  landscape, or at 200% zoom; long words wrap.
+- **Motion:** with "reduce motion" switched on, spinners, pulsing placeholders and transitions stop.
+- **Not yet verified:** a real screen reader (NVDA / VoiceOver) and a real phone — see the Manual items in the
+  checklist.
 
 ## Testing
 

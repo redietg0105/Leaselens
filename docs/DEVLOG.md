@@ -440,3 +440,43 @@ what is sent to Gemini (redacted, access notes never sent). `npm audit`: 12 high
 and production build), framing blocked, end-to-end tenant → coordinator → vendor flow, the photo edge cases.
 
 **Time spent:** ~3 h
+
+## 2026-10-05 — Session 15: accessibility pass
+
+**Prompt:** "Do an accessibility pass on the whole app (tenant, vendor, staff and signed-out pages): skip link,
+headings and landmarks, WCAG AA contrast (text, badges, buttons, focus rings, the red emergency box), focus after
+actions, labels and linked/announced errors, icon-only button names, prefers-reduced-motion, 200% zoom, 44 px tap
+targets. Re-run the keyboard (KB) and screen-size (RS) checklist items… run npm run check, then commit and push."
+
+**How it was checked:** a scripted audit of 39 page states (every page, each role, phone and desktop, with and
+without errors) measuring contrast against the real composited background, headings, landmarks, labels, names and
+tap targets — before and after; plus behaviour checks (skip link, aria-current, focus-ring contrast, focus after
+each action, reduced motion).
+
+**Found → fixed**
+- No skip link; signed-in pages had no `<nav>`, signed-out pages no header → skip link in the root layout,
+  `#main-content` on every `<main>`, a "Main" nav with `aria-current` (client component so it updates), a public
+  header on the signed-out pages.
+- Focus ring ~1.5:1 (light grey at 50%) on every control → `--ring` near-black: 3.4:1 even at 50%; red rings on
+  destructive buttons and invalid fields at full strength; Call 911 ring dark red with an offset.
+- Field and select borders 1.26:1 → `--input` 3:1+; muted text 4.49:1 on red-tinted queue cards → slightly darker.
+- Emergency alert title was an h2 before the page's h1 → a styled paragraph (the section is still named by it).
+- ~15 phone targets under 44 px (header links, Sign out, back links, selects, Filter, Approve, Save, remove-photo ✕)
+  → buttons and button-links min 44 px on phones, selects too, ✕ buttons get a 44 px area around the 32 px circle.
+- Focus lost after actions → `FocusOnMount` + `?answered=1 / ?dispatched=1 / ?completed=1`; override errors now
+  mark and focus their field; "Check your email" takes focus; removing a photo keeps focus in the list; photo errors
+  announced and linked; access-notes error linked.
+- No reduced-motion handling → global rule stops animations and transitions.
+- 404 title, leasing page title.
+- Found while re-running RS: the phone queue grid grew to the widest unbroken word (page 992 px wide) →
+  `grid-cols-1`.
+
+**Problems:** the first focus-ring measurement read the first frame of a 150 ms fade (buttons use transition-all)
+and Tailwind's transparent extra shadows — fixed the measurement, and made the old KB-1 sweep strict (it counted
+transparent shadows as rings). The request-link limit (5 / 15 min) blocked the sign-in checks; restarted the dev
+servers (which this session had started) to reset it. KB-3's old check matched the intro text and passed falsely
+when rate-limited; it now waits for "Check your email".
+
+**Checks:** audit after: no issues on any of the 39 page states. KB-1–18 and RS-1–13 re-run: all Pass. npm run check.
+
+**Time spent:** ~2.5 h
