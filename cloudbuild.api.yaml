@@ -7,9 +7,11 @@ substitutions:
   _API_SA: leaselens-api@leaselens-511100.iam.gserviceaccount.com
   _WEB_URL: https://leaselens-web-77205277488.us-east5.run.app
   _BUCKET: leaselens-511100-uploads
-  # Proxies in front of the API (Google front end + the web app's /api rewrite); measured after the first deploy.
-  _TRUST_PROXY: "0"
-  _LOG_CLIENT_IP_ONCE: "on"
+  # Proxies in front of the API: X-Forwarded-For arrives as [client, web service's Google egress] (the
+  # front end before the web app adds the client, the one before the API adds the web app); measured
+  # with LOG_CLIENT_IP_ONCE on the first deploy (2026-10-09).
+  _TRUST_PROXY: "2"
+  _LOG_CLIENT_IP_ONCE: "off"
 
 options:
   logging: CLOUD_LOGGING_ONLY

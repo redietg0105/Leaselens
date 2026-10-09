@@ -5,6 +5,7 @@
 import { Logger } from '@nestjs/common';
 import { ConsoleMailService, mailServiceFromEnv, SmtpMailService } from '../src/auth/mail.service';
 import { clientIpProbe, maskIp } from '../src/common/client-ip-probe';
+import { redactDbHost } from '../src/common/redact-db-host';
 import { checkEnv, trimSecrets } from '../src/config/env';
 import { GcsStorageService, metadataTokenSource, StorageObjectNotFound } from '../src/storage/gcs-storage.service';
 import { storageFromEnv } from '../src/storage/storage.module';
@@ -178,5 +179,21 @@ describe('client IP check for TRUST_PROXY', () => {
     probe(req('/auth/request-link'), {} as never, next);
     expect(next).toHaveBeenCalledTimes(3);
     expect(logged).toEqual(['X-Forwarded-For has 2 entries [203.0.x.x, 198.51.x.x]; socket 169.254.x.x; TRUST_PROXY=0 → client 198.51.x.x']);
+  });
+});
+
+describe('migration job output', () => {
+  it('hides the database host and any URL that Prisma prints', () => {
+    const out = redactDbHost(
+      [
+        'Datasource "db": PostgreSQL database "neondb", schema "public" at "ep-example-123.c-7.us-east-2.aws.neon.tech"',
+        "Error: P1001: Can't reach database server at `ep-example-123.neon.tech:5432`",
+        'url: postgresql://user:pass@ep-example-123.neon.tech/neondb?sslmode=require',
+        'No pending migrations to apply.',
+      ].join('\n'),
+    );
+    expect(out).not.toMatch(/ep-example|user:pass/);
+    expect(out).toContain('No pending migrations to apply.');
+    expect(out).toContain('schema "public" at "<database host hidden>"');
   });
 });
