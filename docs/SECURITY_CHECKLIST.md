@@ -123,7 +123,8 @@ Checked in the audit and found sound, so no change was needed:
 - **Photos sent to Gemini** are re-encoded without metadata but may still show personal items (mail, a face).
 - **Text a tenant tries to inject could reach the AI's summary for the vendor.** It is shown as plain text, next to the tenant's own words.
 - **No MFA or "sign out everywhere"** for staff; sessions aren't bound to a device.
-- **Email sending isn't wired up** (links are printed in development; in production nobody could sign in yet).
+- **Sign-in links are sent from one Gmail account** over SMTP (app password in Secret Manager); Gmail's daily sending limits apply.
+- **The API's own Cloud Run URL is public** (the web app forwards to it). Called directly, one `X-Forwarded-For` hop can be faked to dodge per-address limits (`TRUST_PROXY=2`); per-account limits and sessions still apply. Fix later: internal-only ingress, with the web service reaching the API through a VPC.
 - **Uploaded photos aren't virus-scanned** (re-encoding removes most risk) and have no retention policy.
 - **The audit log is append-only by convention,** not tamper-evident.
 - **`SESSION_SECRET` is reserved and unused** (sessions are random tokens stored as hashes, so no signing key is needed).

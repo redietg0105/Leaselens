@@ -548,3 +548,51 @@ data changed; the running servers were not restarted (the web dev server picked 
 reproduced in 5 further runs (3 × jest, 2 × npm run check). Treated as a flaky test to watch, not fixed.
 
 **Time spent:** ~1 h
+
+## 2026-10-08/09 — Session 18: deploy to Google Cloud Run (us-east5)
+
+**Prompt:** "Deploy LeaseLens to Google Cloud Run. Plan first and wait for my 'go'…" Two Cloud Run services from
+Dockerfiles (Next.js standalone, NestJS + Prisma), Artifact Registry, one Cloud Build trigger per service on push to
+main via the "github" connection, same-origin /api rewrite, background triage on Cloud Run, API max 1 instance and
+the right TRUST_PROXY (verified by logging the client IP once), Cloud Storage behind the storage interface, Gmail SMTP
+behind a mail interface, demo account emails changed on the Neon "live" branch only, migrate deploy without seeding,
+Secret Manager values entered by the user, smallest settings, cost estimate, real-email sign-in + photo request +
+triage check, then a tiny change to prove automatic redeploys. Answers after the plan: Gmail redietg0105@gmail.com
+with +tenant/+vendor/+coordinator/+leasing/+manager; CPU always allocated, min instances 0; copy the one local photo;
+the user clicks the email link; plus "trim whitespace from all secret values when the API loads its settings".
+
+**Stages (UTC, 2026-10-09)**
+
+| Time | Stage |
+|---|---|
+| ≈00:55–01:19 | Code: Dockerfiles, cloudbuild.*.yaml, /api rewrite, GCS storage, SMTP mail, secret trimming, IP probe, job scripts; tests; `290bd77` pushed (no triggers yet) |
+| 01:19:44–01:22:00 | Cloud Run API enabled; Artifact Registry `leaselens` (+ keep-5 cleanup); bucket; 3 service accounts + roles; 4 empty secrets; 2 triggers |
+| 01:22–01:23 | Copied the one existing local photo to the bucket (first copied the wrong file by mistake; deleted it within a minute) |
+| 01:23:28–01:25:01 | Build-only test #1 (git archive of HEAD): web failed — `tsconfig.base.json` missing in the Docker builds |
+| 01:25:50–01:28:03 | Fix `13f4ec7`; build-only test #2: both images built |
+| (user) | Secret values entered by the user; versions checked by count only |
+| 01:35:39 | Push `13f4ec7` → both triggers 01:35:43; web deployed 01:38:23, API (incl. migrate job: "No pending migrations") 01:38:40 |
+| 01:39:50 | Public access (allUsers invoker) on both; `/health` 200 direct and via `/api/health` |
+| 01:40:01 | One-off job `leaselens-admin`: demo emails on live — "5 updated, 0 missing"; job deleted |
+| 01:40:52 | Tenant sign-in email sent via the web URL; client-IP log: XFF = [visitor, web service egress] → TRUST_PROXY=2 |
+| 01:42:57 | Push `d92730b` (TRUST_PROXY=2, IP log off, DB host hidden in migrate output); web 01:45:32, API 01:46:39 |
+| 01:42:09–01:48:50 | User clicked the emailed link (verify 200), request with a phone photo (201), triage NEEDS_INFO → answers → TRIAGED ROUTINE PLUMBING, auto-dispatched to Capital Flow Plumbing ($190 < $250) |
+| 01:52:33 | Push `37316ba` (tiny visible change: "· Google Cloud Run" after the version) → both triggers started 01:52:36 by themselves; web revision `leaselens-web-00003` live 01:54:31 (build done 01:54:43), API revision `leaselens-api-00003` live 01:56:00 (build done 01:56:15); the page shows "Version 37316ba · Google Cloud Run" |
+
+**Checks:** photo stored in the bucket (960 × 1280, no EXIF/GPS/XMP); triage ran 2 s after the response (CPU always
+allocated); notification logs carry ids only; live settings NODE_ENV=production, DEMO_MODE=off, TRUST_PROXY=2.
+npm run check before every push (372 tests at the end).
+
+**Problems and fixes**
+- `tsconfig.base.json` missing from both Docker builds — caught by a build-only Cloud Build test before any deploy.
+- The Prisma CLI prints the database host in `migrate deploy` output, and it showed in the job log (and in my
+  terminal). The wrapper now hides hosts/URLs (`redactDbHost`, tested); later runs show "<database host hidden>".
+- `prisma` CLI was a dev dependency; moved to dependencies (lockfile-only update) so the migrate job can run it.
+- Next.js resolves rewrites at build time → the API origin is a build argument; `proxy.ts` excludes `/api` so
+  upload bodies aren't buffered (10 MB limit); the CSP treats a relative API URL as 'self'.
+- `gcloud builds submit` with the builder account couldn't read the staging bucket → the one-off build test used the
+  default Cloud Build account (triggers use `leaselens-builder`).
+- The user's local dev servers were not running when checked (after `npm install nodemailer`); not started.
+- First copy of the "existing photo" took the wrong one of 5 local files; corrected by file date (2 Oct 15:20).
+
+**Time spent:** ~3 h (including waiting for builds and the user's secret entry and sign-in)

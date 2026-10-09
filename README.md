@@ -8,7 +8,8 @@ the right vendor with one click — while people stay in charge of every decisio
 > in Washington, DC. Product spec: [docs/SPEC.md](docs/SPEC.md) · Build log: [docs/DEVLOG.md](docs/DEVLOG.md)
 
 **Contents:** [Problem](#the-problem) · [Features](#what-it-does) · [Tech stack](#tech-stack) ·
-[Setup on Windows](#setup-on-windows) · [Scripts](#scripts) · [Demo accounts](#demo-accounts) ·
+[Setup on Windows](#setup-on-windows) · [Scripts](#scripts) · [Deployment](#deployment-google-cloud-run) ·
+[Demo accounts](#demo-accounts) ·
 [Responsible AI](#responsible-ai-rules) · [Security](#security-checklist) · [Accessibility](#accessibility) ·
 [Testing](#testing) ·
 [Limitations](#known-limitations) · [Next phase](#next-phase) · [Troubleshooting](#troubleshooting)
@@ -123,6 +124,44 @@ Run from the repo root.
 | `npm run triage:once -w @leaselens/api -- <workOrderId> --rerun` | One **real** Gemini triage call for one request; prints what was sent and received |
 | `npm run db:deploy -w @leaselens/api` | Apply migrations without prompts (for deployment) |
 
+## Deployment (Google Cloud Run)
+
+Live: **https://leaselens-web-77205277488.us-east5.run.app** (API: https://leaselens-api-77205277488.us-east5.run.app).
+Project `leaselens-511100`, region **us-east5**, database: the Neon branch **live**.
+
+**How it fits together**
+- Two Cloud Run services built from this monorepo: `leaselens-web` (Next.js standalone, `apps/web/Dockerfile`) and
+  `leaselens-api` (NestJS + Prisma, `apps/api/Dockerfile`). Images in Artifact Registry `leaselens` (newest 5 kept).
+- The browser only talks to the web URL: Next.js forwards `/api/*` to the API (fixed at build time from
+  `API_ORIGIN`), so the session cookie is first-party and `Secure`. Server-side calls use `API_INTERNAL_URL`.
+- Photos in the private bucket `leaselens-511100-uploads` (`STORAGE_DRIVER=gcs`, the service account's own
+  credentials — no key file). Sign-in links by Gmail SMTP (`SMTP_*`). Demo mode is off; `NODE_ENV=production`.
+- API: 0–1 instances (rate limits are in memory), CPU always allocated so AI triage and auto-dispatch finish after
+  the response; `TRUST_PROXY=2` (measured: `X-Forwarded-For` arrives as [visitor, web service]). Web: 0–2 instances.
+
+**Continuous deployment.** Every push to `main` runs two Cloud Build triggers (`leaselens-api`, `leaselens-web`,
+"github" connection) with `cloudbuild.api.yaml` / `cloudbuild.web.yaml`: build → push → (API only) the Cloud Run job
+`leaselens-migrate` runs `prisma migrate deploy` → deploy. Service settings live in those two files. Never run
+`db:seed` against live (the image doesn't contain the seed runner, and the seed refuses `NODE_ENV=production`).
+
+**Secrets** (Secret Manager, readable only by the `leaselens-api` service account; values are trimmed on load):
+
+| Secret | Used by |
+|---|---|
+| `DATABASE_URL` | API, migrate job (live pooled URL) |
+| `DIRECT_URL` | migrate job (live direct URL) |
+| `GEMINI_API_KEY` | API |
+| `SMTP_PASSWORD` | API (Gmail app password) |
+
+The web service needs no secrets. To change a value: `gcloud secrets versions add NAME --project leaselens-511100
+--data-file=-`, then redeploy (push, or re-run the trigger).
+
+**Demo accounts on live** sign in by email: `redietg0105+tenant@gmail.com`, `+vendor`, `+coordinator`, `+leasing`,
+`+manager` (all arrive in redietg0105@gmail.com). The local database keeps the `@leaselens.test` accounts.
+
+**Cost** (light demo use): about $0–3 a month, mostly free tiers; worst case about $45 if the API instance were kept
+warm all month.
+
 ## Demo accounts
 
 All fictional (`.test` addresses can't receive mail). Created by `npm run db:seed`.
@@ -216,7 +255,11 @@ From [CLAUDE.md](CLAUDE.md) and SPEC §4 — how each is enforced, and where it'
 
 **Gaps (known, for the next phase)**
 - With `DEMO_MODE="on"` the sign-in page reveals which emails have accounts — acceptable for local demos only.
-- Email sending isn't wired up — in production nobody could sign in yet (links are only printed in development).
+- Sign-in links go out through one Gmail account (SMTP, daily sending limits apply); other notifications are still only
+  stored and logged.
+- The API's own Cloud Run URL is public too (the web app forwards to it), so a caller using it directly can fake one
+  `X-Forwarded-For` hop to dodge per-address limits; per-account limits and sessions still apply. Closing it needs
+  internal-only ingress with the web service on a VPC.
 - Rate limits are in memory: per server instance and reset on restart, and per address (tenants sharing one
   network share a limit).
 - No CSRF token — relies on `SameSite=Lax`, the CORS allow-list and the Origin check above.
@@ -261,7 +304,7 @@ and the keyboard / screen-size items in [the testing checklist](docs/TESTING_CHE
 
 ## Testing
 
-`npm test` runs **353 API tests** in about 15 seconds — no network or database: the API runs against an
+`npm test` runs **372 API tests** in about 15 seconds — no network or database: the API runs against an
 in-memory fake of Prisma and a fake Gemini that records exactly what would be sent. Covered: sign-in and
 sessions, role guards, tenant and vendor isolation, validation and photo rules, every emergency rule and the
 heating season, AI success/failure/timeout/invalid output, privacy and prompt injection, follow-ups, overrides,
