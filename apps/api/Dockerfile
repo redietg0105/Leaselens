@@ -15,6 +15,7 @@ COPY packages/shared/package.json packages/shared/
 
 FROM base AS build
 RUN npm ci -w @leaselens/api -w @leaselens/shared --include-workspace-root=false --no-audit --no-fund
+COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 RUN npm run build -w @leaselens/shared \
