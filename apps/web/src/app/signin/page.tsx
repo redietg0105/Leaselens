@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { DemoInfoSchema, homePathForRole, type DemoAccount } from "@leaselens/shared";
+import { DemoInfoSchema, homePathForRole, ReviewerInfoSchema, type DemoAccount } from "@leaselens/shared";
 import { serverApiUrl } from "@/lib/server-api";
 import { getCurrentUser } from "@/lib/session";
+import { ReviewerAccess } from "./reviewer-access";
 import { SignInForm } from "./signin-form";
 import { PublicHeader } from "@/components/public-header";
 
@@ -20,10 +21,22 @@ async function demoAccounts(): Promise<DemoAccount[] | null> {
   }
 }
 
+/** Whether the API has reviewer access switched on (live site, for grading). Off if the API is down. */
+async function reviewerAccessEnabled(): Promise<boolean> {
+  try {
+    const res = await fetch(serverApiUrl("/auth/reviewer"), { cache: "no-store" });
+    if (!res.ok) return false;
+    const info = ReviewerInfoSchema.safeParse(await res.json());
+    return info.success && info.data.enabled;
+  } catch {
+    return false;
+  }
+}
+
 export default async function SignInPage() {
   const user = await getCurrentUser();
   if (user) redirect(homePathForRole(user.role));
-  const accounts = await demoAccounts();
+  const [accounts, reviewer] = await Promise.all([demoAccounts(), reviewerAccessEnabled()]);
 
   return (
     <>
@@ -36,6 +49,7 @@ export default async function SignInPage() {
           </p>
         </div>
         <SignInForm demoAccounts={accounts} />
+        {reviewer && <ReviewerAccess />}
       </main>
     </>
   );

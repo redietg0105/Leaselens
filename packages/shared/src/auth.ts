@@ -85,3 +85,30 @@ export const DemoInfoSchema = z.object({
     .optional(),
 });
 export type DemoInfo = z.infer<typeof DemoInfoSchema>;
+
+// ───────────── Reviewer access (live site, for grading) ─────────────
+
+/**
+ * The seeded demo accounts a reviewer can sign in as with the access code. The API maps each role to one
+ * fixed seeded user; the browser only ever sends the role.
+ */
+export const REVIEWER_ACCOUNTS = [
+  { role: 'TENANT', label: 'Tenant' },
+  { role: 'COORDINATOR', label: 'Coordinator' },
+  { role: 'VENDOR', label: 'Vendor' },
+  { role: 'LEASING', label: 'Leasing' },
+  { role: 'MANAGER', label: 'Manager' },
+] as const satisfies readonly { role: Role; label: string }[];
+export type ReviewerRole = (typeof REVIEWER_ACCOUNTS)[number]['role'];
+
+export const WRONG_REVIEWER_CODE_MESSAGE = "That access code isn't right.";
+export const REVIEWER_LIMIT_MESSAGE = 'Too many attempts. Please wait 15 minutes and try again.';
+
+export const ReviewerSignInSchema = z.object({
+  code: z.string().trim().min(1, 'Enter the access code.').max(200, WRONG_REVIEWER_CODE_MESSAGE),
+  role: z.enum(['TENANT', 'COORDINATOR', 'VENDOR', 'LEASING', 'MANAGER'], { error: 'Choose an account.' }),
+});
+export type ReviewerSignInInput = z.input<typeof ReviewerSignInSchema>;
+
+export const ReviewerInfoSchema = z.object({ enabled: z.boolean() });
+export type ReviewerInfo = z.infer<typeof ReviewerInfoSchema>;

@@ -5,3 +5,6 @@
  * mode turn it on themselves (demo-mode.e2e.spec.ts).
  */
 process.env.DEMO_MODE = 'off';
+// Same for reviewer access: off unless a test turns it on (reviewer-access.e2e.spec.ts).
+process.env.REVIEWER_ACCESS = 'off';
+process.env.REVIEWER_ACCESS_CODE = '';

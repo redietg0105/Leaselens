@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { REVIEWER_CODE_MIN_LENGTH } from '../auth/reviewer';
 import { isLocalWebUrl } from './demo';
 
 const url = (name: string) =>
@@ -45,10 +46,15 @@ export const EnvSchema = z.object({
   MAIL_FROM: z.string().optional(),
   // Deployment check: log the forwarded-for chain (masked) once, to choose TRUST_PROXY. Leave off.
   LOG_CLIENT_IP_ONCE: z.enum(['on', 'off'], { error: 'LOG_CLIENT_IP_ONCE must be "on" or "off"' }).optional(),
+  // Reviewer access (live site, for grading): an access code signs in to a seeded demo account. Off by default.
+  REVIEWER_ACCESS: z.enum(['on', 'off'], { error: 'REVIEWER_ACCESS must be "on" or "off"' }).optional(),
+  REVIEWER_ACCESS_CODE: z.string().optional(),
 }).refine((e) => !(e.STORAGE_DRIVER === 'gcs' && !e.GCS_BUCKET), {
   message: 'STORAGE_DRIVER="gcs" needs GCS_BUCKET (the bucket for photos).',
 }).refine((e) => !(e.SMTP_HOST && (!e.SMTP_USER || !e.SMTP_PASSWORD)), {
   message: 'SMTP_HOST is set, so SMTP_USER and SMTP_PASSWORD are needed too.',
+}).refine((e) => !(e.REVIEWER_ACCESS === 'on' && (e.REVIEWER_ACCESS_CODE ?? '').length < REVIEWER_CODE_MIN_LENGTH), {
+  message: `REVIEWER_ACCESS="on" needs REVIEWER_ACCESS_CODE with at least ${REVIEWER_CODE_MIN_LENGTH} characters.`,
 }).refine((e) => !(e.DEMO_MODE === 'on' && e.NODE_ENV === 'production'), {
   message: 'DEMO_MODE must be "off" when NODE_ENV is production — demo mode shows sign-in links in the browser.',
 }).refine((e) => !(e.DEMO_MODE === 'on' && !isLocalWebUrl(e.WEB_URL)), {
@@ -82,7 +88,7 @@ export function checkEnv(env: NodeJS.ProcessEnv = process.env): EnvCheck {
  * Settings that hold secrets. Entering a value by hand (e.g. `gcloud secrets versions add … --data-file=-` on
  * Windows) easily adds a trailing newline or space, which would break a database URL, an API key or a password.
  */
-export const SECRET_KEYS = ['DATABASE_URL', 'DIRECT_URL', 'GEMINI_API_KEY', 'SMTP_PASSWORD', 'SESSION_SECRET'] as const;
+export const SECRET_KEYS = ['DATABASE_URL', 'DIRECT_URL', 'GEMINI_API_KEY', 'SMTP_PASSWORD', 'SESSION_SECRET', 'REVIEWER_ACCESS_CODE'] as const;
 
 /** Trims surrounding whitespace from every secret setting, in place, before anything reads them. */
 export function trimSecrets(env: NodeJS.ProcessEnv = process.env): void {

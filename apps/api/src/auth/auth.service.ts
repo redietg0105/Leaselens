@@ -1,16 +1,18 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   homePathForRole,
   INVALID_LINK_MESSAGE,
   LINKS_PER_EMAIL_WINDOW,
   MAGIC_LINK_TTL_MINUTES,
   SESSION_TTL_DAYS,
+  type ReviewerRole,
 } from '@leaselens/shared';
 import { isDemoRequest } from '../config/demo';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from './auth.types';
 import { errorText } from '../common/error-text';
 import { MailService } from './mail.service';
+import { REVIEWER_USER_IDS } from './reviewer';
 import { generateToken, hashToken } from './tokens';
 
 const MINUTE = 60 * 1000;
@@ -18,6 +20,8 @@ const DAY = 24 * 60 * MINUTE;
 
 /** What happened to a link request (never shown outside demo mode). */
 type IssueResult = { url: string } | { url: null; reason: 'unknown' | 'limit' };
+
+export const REVIEWER_UNAVAILABLE_MESSAGE = 'Reviewer access is not available right now.';
 
 const toAuthUser = (u: AuthUser): AuthUser => ({
   id: u.id,
@@ -101,13 +105,36 @@ export class AuthService {
     const link = await this.prisma.magicLinkToken.findUnique({ where: { tokenHash }, include: { user: true } });
     if (!link) throw new BadRequestException(INVALID_LINK_MESSAGE);
 
-    const sessionToken = generateToken();
-    const expiresAt = new Date(now.getTime() + SESSION_TTL_DAYS * DAY);
-    await this.prisma.session.create({
-      data: { userId: link.userId, tokenHash: hashToken(sessionToken), expiresAt },
-    });
+    return this.startSession(toAuthUser(link.user));
+  }
 
-    const user = toAuthUser(link.user);
+  /**
+   * Reviewer access: signs in to the fixed seeded demo account for a role (the code was already checked).
+   * Refuses if that seeded account is missing or no longer has the role — never falls back to another account.
+   */
+  async reviewerSignIn(role: ReviewerRole) {
+    const row = await this.prisma.user.findUnique({ where: { id: REVIEWER_USER_IDS[role] } });
+    if (!row || row.id !== REVIEWER_USER_IDS[role] || row.role !== role) {
+      this.logger.warn(`Reviewer sign-in: no seeded ${role} account`);
+      throw new NotFoundException(REVIEWER_UNAVAILABLE_MESSAGE);
+    }
+    const user = toAuthUser(row);
+    const session = await this.startSession(user);
+    // Role only: no code, address or browser details.
+    await this.prisma.auditLog.create({
+      data: { actorId: user.id, action: 'auth.reviewer_signin', entity: 'User', entityId: user.id, after: { role } },
+    });
+    this.logger.log(`Reviewer sign-in as ${role}`);
+    return session;
+  }
+
+  /** A new session for a user (the same for emailed links and reviewer access). */
+  private async startSession(user: AuthUser) {
+    const sessionToken = generateToken();
+    const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * DAY);
+    await this.prisma.session.create({
+      data: { userId: user.id, tokenHash: hashToken(sessionToken), expiresAt },
+    });
     return { sessionToken, expiresAt, user, redirectTo: homePathForRole(user.role) };
   }
 

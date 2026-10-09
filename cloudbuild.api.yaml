@@ -12,6 +12,9 @@ substitutions:
   # with LOG_CLIENT_IP_ONCE on the first deploy (2026-10-09).
   _TRUST_PROXY: "2"
   _LOG_CLIENT_IP_ONCE: "off"
+  # Reviewer access (access code → seeded demo account, for grading). Off here; switched on by the trigger's
+  # own substitution value. Turn it off with the trigger setting (and gcloud run services update for now).
+  _REVIEWER_ACCESS: "off"
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -60,8 +63,8 @@ steps:
       - --no-cpu-throttling
       - --concurrency=40
       - --timeout=60s
-      - "--set-env-vars=^|^NODE_ENV=production|DEMO_MODE=off|WEB_URL=${_WEB_URL}|STORAGE_DRIVER=gcs|GCS_BUCKET=${_BUCKET}|SMTP_HOST=smtp.gmail.com|SMTP_PORT=465|SMTP_USER=redietg0105@gmail.com|MAIL_FROM=LeaseLens <redietg0105@gmail.com>|TRUST_PROXY=${_TRUST_PROXY}|LOG_CLIENT_IP_ONCE=${_LOG_CLIENT_IP_ONCE}|LOG_LEVEL=info|TRIAGE_TIMEOUT_MS=25000|AUTO_DISPATCH_LIMIT_USD=250"
-      - --set-secrets=DATABASE_URL=DATABASE_URL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,SMTP_PASSWORD=SMTP_PASSWORD:latest
+      - "--set-env-vars=^|^NODE_ENV=production|DEMO_MODE=off|WEB_URL=${_WEB_URL}|STORAGE_DRIVER=gcs|GCS_BUCKET=${_BUCKET}|SMTP_HOST=smtp.gmail.com|SMTP_PORT=465|SMTP_USER=redietg0105@gmail.com|MAIL_FROM=LeaseLens <redietg0105@gmail.com>|TRUST_PROXY=${_TRUST_PROXY}|LOG_CLIENT_IP_ONCE=${_LOG_CLIENT_IP_ONCE}|REVIEWER_ACCESS=${_REVIEWER_ACCESS}|LOG_LEVEL=info|TRIAGE_TIMEOUT_MS=25000|AUTO_DISPATCH_LIMIT_USD=250"
+      - --set-secrets=DATABASE_URL=DATABASE_URL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,SMTP_PASSWORD=SMTP_PASSWORD:latest,REVIEWER_ACCESS_CODE=REVIEWER_ACCESS_CODE:latest
 
 images:
   - ${_IMAGE}:$SHORT_SHA
