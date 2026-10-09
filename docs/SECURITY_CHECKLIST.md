@@ -79,6 +79,13 @@ browser test (`npm run test:e2e`).
 - [x] **Local clients only:** demo links and the demo-accounts list are given only to requests from loopback, private or link-local addresses (IPv4-mapped forms like `::ffff:127.0.0.1` handled) (`demo-mode.e2e.spec.ts`).
 - [x] **Rate limits stay on** in demo mode; unknown emails get exactly the normal response; an account over its link limit gets a clear demo-only notice (`demo-mode.e2e.spec.ts`; browser test `e2e/demo-sign-in.spec.ts`).
 
+### Reviewer access (live site, for grading)
+- [x] **Off by default:** needs `REVIEWER_ACCESS="on"` and a `REVIEWER_ACCESS_CODE` of at least 16 characters (Secret Manager); otherwise the route answers 404 and the sign-in page hides it. Switched off with a setting, no code change (`reviewer-access.e2e.spec.ts`).
+- [x] **Constant-time code check** over SHA-256 hashes (length isn't revealed); the code is trimmed on load, never logged, never stored (`reviewer-access.e2e.spec.ts`, log capture).
+- [x] **Only the five seeded demo user ids**, fixed in code; a user id or email in the request is ignored, and a missing or changed seeded account is refused rather than replaced (`reviewer-access.e2e.spec.ts`).
+- [x] **Wrong-code limits:** 5 per address per 15 minutes (then "Too many attempts", even for the right code), 50 from all addresses together per 15 minutes (pauses it for everyone), and at most 30 attempts per address per 15 minutes overall (`reviewer-access.e2e.spec.ts`).
+- [x] **Normal session and role checks;** one audit entry per sign-in with the role only (`reviewer-access.e2e.spec.ts`). Demo mode is unchanged and still off on live.
+
 ## 2. Vulnerabilities found in the audit
 
 | ID | Severity | What it was | How it was resolved | Test | Commit |
@@ -116,6 +123,13 @@ Checked in the audit and found sound, so no change was needed:
   - **Moderate (20):** a newly published `sprintf-js` advisory in Jest's test tooling.
   - **Not applied:** the fixes `npm audit` suggests are downgrades to older major versions.
 - **Demo mode reveals which emails have accounts** (known accounts get a link). This was accepted for local demos only, and is blocked in production and for non-local clients and URLs.
+- **Reviewer access (accepted for grading, 2026-10-09):** anyone with the access code can sign in as any of the five
+  demo accounts on the live site, including Coordinator and Manager, and change the live demo data (approve,
+  override, dispatch). Accepted while the course is graded. Mitigations: off by default and switched off after
+  grading by a setting; a 16+ character code in Secret Manager compared in constant time; 5 wrong codes per address
+  and 50 overall per 15 minutes (the overall limit bounds guessing even through the API's public URL, where one
+  address hop can be faked); only the seeded demo accounts; every sign-in audited. The limits are in memory, so a
+  restart resets them.
 - **No CSRF token;** protection relies on `SameSite=Lax`, the CORS allow-list and the Origin check.
 - **The web CSP allows inline styles** (`style-src 'unsafe-inline'`), which Next.js and the UI library need; styles can't run code.
 - **The sign-in token is in the link's URL** (it stays in browser history). It is single-use, expires in 15 minutes, is never sent in a Referer, and needs a click to use.
@@ -133,6 +147,6 @@ Checked in the audit and found sound, so no change was needed:
 
 | Command | What it checks |
 |---|---|
-| `npm run check` | Typecheck, lint and the 353 API tests, including every security test above |
+| `npm run check` | Typecheck, lint and the 404 API tests, including every security test above |
 | `npm run test:e2e` | Demo sign-in in a real browser against the running app (`npm run dev`, `DEMO_MODE="on"`) |
 | `npm audit` / `npm audit --omit=dev` | Dependency findings (expected: the tooling items in section 3) |

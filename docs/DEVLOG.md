@@ -596,3 +596,25 @@ npm run check before every push (372 tests at the end).
 - First copy of the "existing photo" took the wrong one of 5 local files; corrected by file date (2 Oct 15:20).
 
 **Time spent:** ~3 h (including waiting for builds and the user's secret entry and sign-in)
+
+## 2026-10-09 — Session 19: reviewer access for grading
+
+**Prompt:** "My professor needs to test LeaseLens on the live site without access to my email…" Add a production
+"Reviewer access" sign-in: access code (Secret Manager `REVIEWER_ACCESS_CODE`, constant-time, never logged) + one of
+5 roles → that seeded demo account; off unless `REVIEWER_ACCESS=on`; 5 wrong codes per 15 min per address; normal
+session and role checks; audit entry with the role only; demo mode untouched; tests, docs.
+
+**Built:** `POST /auth/reviewer` and `GET /auth/reviewer` (enabled flag); `WrongCodeLimiter` (5 per address, plus 50
+overall per 15 min, since the API's public URL lets one address hop be faked); fixed seeded ids only; shared session
+creation with the emailed-link path; startup check (on needs a code of 16+ characters); code trimmed like the other
+secrets; "Reviewer access" section on /signin (labelled password field, 5 role buttons, 44 px targets, linked
+errors that clear when the code changes); `cloudbuild.api.yaml` `_REVIEWER_ACCESS` substitution (default off) and
+the secret mapping. 32 new tests (404 in total).
+
+**Cloud:** empty secret `REVIEWER_ACCESS_CODE` (us-east5) created, accessor for `leaselens-api` only. Setting the
+trigger's `_REVIEWER_ACCESS=on` was blocked by the agent's permission check; the user runs that command.
+
+**Problems and fixes:** the web `apiPost` turns every 401 into "Your session has ended", so a wrong code answers
+403 with its own message. The shared package must be rebuilt before the API tests see new exports.
+
+**Time spent:** ~45 min

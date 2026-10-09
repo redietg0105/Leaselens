@@ -152,12 +152,34 @@ Project `leaselens-511100`, region **us-east5**, database: the Neon branch **liv
 | `DIRECT_URL` | migrate job (live direct URL) |
 | `GEMINI_API_KEY` | API |
 | `SMTP_PASSWORD` | API (Gmail app password) |
+| `REVIEWER_ACCESS_CODE` | API (reviewer access code, at least 16 characters) |
 
 The web service needs no secrets. To change a value: `gcloud secrets versions add NAME --project leaselens-511100
 --data-file=-`, then redeploy (push, or re-run the trigger).
 
 **Demo accounts on live** sign in by email: `redietg0105+tenant@gmail.com`, `+vendor`, `+coordinator`, `+leasing`,
 `+manager` (all arrive in redietg0105@gmail.com). The local database keeps the `@leaselens.test` accounts.
+
+**Reviewer access (for grading).** Lets a reviewer try the live site without an inbox. When it's on, the sign-in
+page has a small **Reviewer access** section below the email form: enter the access code, then click **Tenant**,
+**Coordinator**, **Vendor**, **Leasing** or **Manager** to sign in to that seeded demo account. Email sign-in is
+unchanged.
+- Only the five seeded demo accounts (`seed_user_tenant`, `…_coordinator`, `…_vendor`, `…_leasing`, `…_manager`);
+  the browser sends only the code and the role, and no other account can ever be used.
+- Normal session cookie and role checks; each sign-in writes an audit entry (`auth.reviewer_signin`, role only).
+- The code is compared in constant time and never logged or stored. 5 wrong codes per address in 15 minutes, then
+  "Too many attempts"; 50 wrong codes from all addresses together pause it for 15 minutes.
+- Off unless `REVIEWER_ACCESS=on` **and** `REVIEWER_ACCESS_CODE` has at least 16 characters (the API refuses to
+  start with it on and a shorter code). `cloudbuild.api.yaml` says `off`; the `leaselens-api` trigger's
+  `_REVIEWER_ACCESS` substitution switches it on.
+- Set or change the code (PowerShell; type the code, then Enter and Ctrl+Z, Enter), then redeploy:
+  `gcloud secrets versions add REVIEWER_ACCESS_CODE --project leaselens-511100 --data-file=-`
+- **Switch it off after grading** — both, so it stays off on later pushes:
+  ```
+  gcloud run services update leaselens-api --project leaselens-511100 --region us-east5 --update-env-vars REVIEWER_ACCESS=off
+  gcloud builds triggers update github leaselens-api --project leaselens-511100 --region us-east5 --update-substitutions=_REVIEWER_ACCESS=off
+  ```
+  The first takes effect within a minute (new revision); the sign-in page then hides the section.
 
 **Cost** (light demo use): about $0–3 a month, mostly free tiers; worst case about $45 if the API instance were kept
 warm all month.
@@ -304,7 +326,7 @@ and the keyboard / screen-size items in [the testing checklist](docs/TESTING_CHE
 
 ## Testing
 
-`npm test` runs **372 API tests** in about 15 seconds — no network or database: the API runs against an
+`npm test` runs **404 API tests** in about 15 seconds — no network or database: the API runs against an
 in-memory fake of Prisma and a fake Gemini that records exactly what would be sent. Covered: sign-in and
 sessions, role guards, tenant and vendor isolation, validation and photo rules, every emergency rule and the
 heating season, AI success/failure/timeout/invalid output, privacy and prompt injection, follow-ups, overrides,
