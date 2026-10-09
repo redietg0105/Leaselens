@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { DemoInfoSchema, homePathForRole, type DemoAccount } from "@leaselens/shared";
-import { apiUrl } from "@/lib/api";
+import { serverApiUrl } from "@/lib/server-api";
 import { getCurrentUser } from "@/lib/session";
 import { SignInForm } from "./signin-form";
 import { PublicHeader } from "@/components/public-header";
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Sign in · LeaseLens" };
 /** Demo accounts if the API says demo mode is on (local only); otherwise — or if the API is down — none. */
 async function demoAccounts(): Promise<DemoAccount[] | null> {
   try {
-    const res = await fetch(apiUrl("/auth/demo"), { cache: "no-store" });
+    const res = await fetch(serverApiUrl("/auth/demo"), { cache: "no-store" });
     if (!res.ok) return null;
     const info = DemoInfoSchema.safeParse(await res.json());
     return info.success && info.data.enabled ? ((info.data.accounts ?? []) as DemoAccount[]) : null;

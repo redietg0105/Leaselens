@@ -21,7 +21,8 @@ export function proxy(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
   const csp = contentSecurityPolicy({
     nonce,
-    apiOrigin: new URL(API_URL).origin,
+    // Deployed, the API is reached through /api on this origin ("self"); locally it is another origin.
+    apiOrigin: API_URL.startsWith("/") ? null : new URL(API_URL).origin,
     dev: process.env.NODE_ENV !== "production",
   });
   const headers = new Headers(request.headers);
@@ -38,7 +39,9 @@ export const config = {
   // Every page, but not static files or prefetches (they don't render HTML).
   matcher: [
     {
-      source: "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+      // Not /api/*: those requests are forwarded to the API untouched (running this on them would make
+      // Next.js buffer upload bodies, with a 10 MB limit).
+      source: "/((?!api(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

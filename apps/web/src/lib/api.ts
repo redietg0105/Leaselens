@@ -1,4 +1,7 @@
-/** Base URL of the LeaseLens API (port 4100 in development). */
+/**
+ * Base URL of the LeaseLens API as the browser sees it: http://localhost:4100 in development, "/api" when
+ * deployed (the web app forwards /api/* to the API service, so the browser only talks to one origin).
+ */
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4100";
 
 export class ApiError extends Error {

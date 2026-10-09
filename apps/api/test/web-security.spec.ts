@@ -37,6 +37,13 @@ describe('web Content-Security-Policy', () => {
     );
   });
 
+  it('deployed with the API behind /api on the same origin: only "self", and http:// is upgraded', () => {
+    const same = directives(contentSecurityPolicy({ nonce: 'n', apiOrigin: null, dev: false }));
+    expect(same['connect-src']).toEqual(["'self'"]);
+    expect(same['img-src']).toEqual(["'self'", 'blob:', 'data:']);
+    expect(same).toHaveProperty('upgrade-insecure-requests');
+  });
+
   it('development adds only what hot reload and React debugging need', () => {
     expect(dev['script-src']).toContain("'unsafe-eval'");
     expect(dev['connect-src']).toEqual(["'self'", 'http://localhost:4100', 'ws:', 'wss:']);

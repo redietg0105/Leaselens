@@ -34,6 +34,21 @@ export const EnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
   DEMO_MODE: z.enum(['on', 'off'], { error: 'DEMO_MODE must be "on" or "off"' }).optional(),
+  // Where photos are stored: local disk (development) or a Cloud Storage bucket (deployed).
+  STORAGE_DRIVER: z.enum(['local', 'gcs'], { error: 'STORAGE_DRIVER must be "local" or "gcs"' }).optional(),
+  GCS_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$/, 'GCS_BUCKET must be a bucket name, e.g. my-project-uploads').optional(),
+  // Sign-in emails over SMTP (e.g. Gmail with an app password). Not set → links are printed (development only).
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: optionalNumber('SMTP_PORT', 1, 65535),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
+  // Deployment check: log the forwarded-for chain (masked) once, to choose TRUST_PROXY. Leave off.
+  LOG_CLIENT_IP_ONCE: z.enum(['on', 'off'], { error: 'LOG_CLIENT_IP_ONCE must be "on" or "off"' }).optional(),
+}).refine((e) => !(e.STORAGE_DRIVER === 'gcs' && !e.GCS_BUCKET), {
+  message: 'STORAGE_DRIVER="gcs" needs GCS_BUCKET (the bucket for photos).',
+}).refine((e) => !(e.SMTP_HOST && (!e.SMTP_USER || !e.SMTP_PASSWORD)), {
+  message: 'SMTP_HOST is set, so SMTP_USER and SMTP_PASSWORD are needed too.',
 }).refine((e) => !(e.DEMO_MODE === 'on' && e.NODE_ENV === 'production'), {
   message: 'DEMO_MODE must be "off" when NODE_ENV is production — demo mode shows sign-in links in the browser.',
 }).refine((e) => !(e.DEMO_MODE === 'on' && !isLocalWebUrl(e.WEB_URL)), {
@@ -59,5 +74,20 @@ export function checkEnv(env: NodeJS.ProcessEnv = process.env): EnvCheck {
   if (!values.GEMINI_API_KEY) warnings.push('GEMINI_API_KEY is not set — AI triage will fail and requests go to NEEDS_REVIEW.');
   if (!values.DIRECT_URL) warnings.push('DIRECT_URL is not set — the app runs, but `npm run db:migrate` needs it.');
   if (!values.WEB_URL) warnings.push('WEB_URL is not set — using http://localhost:3000 for CORS and sign-in links.');
+  if (values.NODE_ENV === 'production' && !values.SMTP_HOST) warnings.push('SMTP_HOST is not set — sign-in emails will not be sent.');
   return { ok: errors.length === 0, errors, warnings };
+}
+
+/**
+ * Settings that hold secrets. Entering a value by hand (e.g. `gcloud secrets versions add … --data-file=-` on
+ * Windows) easily adds a trailing newline or space, which would break a database URL, an API key or a password.
+ */
+export const SECRET_KEYS = ['DATABASE_URL', 'DIRECT_URL', 'GEMINI_API_KEY', 'SMTP_PASSWORD', 'SESSION_SECRET'] as const;
+
+/** Trims surrounding whitespace from every secret setting, in place, before anything reads them. */
+export function trimSecrets(env: NodeJS.ProcessEnv = process.env): void {
+  for (const key of SECRET_KEYS) {
+    const value = env[key];
+    if (typeof value === 'string') env[key] = value.trim();
+  }
 }

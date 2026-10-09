@@ -4,7 +4,7 @@
  */
 import { Logger } from '@nestjs/common';
 import request from 'supertest';
-import { MailService } from '../src/auth/mail.service';
+import { ConsoleMailService } from '../src/auth/mail.service';
 import { errorText } from '../src/common/error-text';
 import { CROSS_SITE_MESSAGE } from '../src/common/same-origin';
 import { NotificationsService } from '../src/notifications/notifications.service';
@@ -81,7 +81,7 @@ describe('personal data stays out of production logs', () => {
 
   it('the mail stand-in does not log the email address', async () => {
     // The real service (the test app swaps in a fake that captures links).
-    await new MailService().sendMagicLink('jordan@example.test', 'http://localhost:3000/auth/verify?token=secret');
+    await new ConsoleMailService().sendMagicLink('jordan@example.test', 'http://localhost:3000/auth/verify?token=secret');
     expect(lines).toEqual(['Email sending is not configured; a sign-in link was not sent.']);
   });
 

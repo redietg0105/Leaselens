@@ -13,7 +13,7 @@ import {
 } from "@leaselens/shared";
 import type { z } from "zod";
 import { PATHNAME_HEADER } from "./request-path";
-import { apiUrl } from "./api";
+import { serverApiUrl } from "./server-api";
 
 async function sessionCookieHeader(): Promise<string | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -27,7 +27,7 @@ async function sessionCookieHeader(): Promise<string | null> {
  */
 async function apiFetch(path: string, cookie: string): Promise<Response> {
   try {
-    return await fetch(apiUrl(path), { headers: { cookie }, cache: "no-store" });
+    return await fetch(serverApiUrl(path), { headers: { cookie }, cache: "no-store" });
   } catch {
     const here = safeReturnPath((await headers()).get(PATHNAME_HEADER), "/");
     redirect(`/unavailable?next=${encodeURIComponent(here)}`);

@@ -70,6 +70,10 @@ export default function Home() {
             ))}
           </ul>
         </nav>
+        {/* Set by the Cloud Build step, so each deployed version can be told apart. Not shown locally. */}
+        {process.env.NEXT_PUBLIC_COMMIT_SHA && (
+          <p className="text-center text-xs text-muted-foreground">Version {process.env.NEXT_PUBLIC_COMMIT_SHA}</p>
+        )}
       </main>
     </>
   );

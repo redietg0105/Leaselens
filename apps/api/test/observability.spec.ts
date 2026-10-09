@@ -165,6 +165,7 @@ describe('.env.example files', () => {
     for (const key of [
       'DATABASE_URL', 'DIRECT_URL', 'GEMINI_API_KEY', 'GEMINI_MODEL', 'GEMINI_FALLBACK_MODEL', 'TRIAGE_TIMEOUT_MS',
       'TRIAGE_SWEEP', 'HEATING_SEASON_START', 'HEATING_SEASON_END', 'AUTO_DISPATCH_LIMIT_USD', 'PORT', 'WEB_URL', 'LOG_LEVEL', 'DEMO_MODE', 'TRUST_PROXY',
+      'LOG_CLIENT_IP_ONCE', 'STORAGE_DRIVER', 'GCS_BUCKET', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'MAIL_FROM',
     ]) {
       expect(api).toHaveProperty(key);
     }

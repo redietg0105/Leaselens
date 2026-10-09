@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
-import { checkEnv } from './config/env';
+import { checkEnv, trimSecrets } from './config/env';
 import { configureApp } from './configure-app';
 
 // Load apps/api/.env in development if it exists (Node >= 20.12). Real env vars win.
@@ -11,6 +11,9 @@ try {
 } catch {
   // No .env file — rely on the environment.
 }
+
+// Secrets entered by hand often carry a trailing newline; trim them before Prisma or anything else reads them.
+trimSecrets();
 
 // Fail fast with a clear message if the configuration is wrong.
 const env = checkEnv();

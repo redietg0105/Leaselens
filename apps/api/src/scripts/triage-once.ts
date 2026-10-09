@@ -8,6 +8,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
+import { trimSecrets } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { TriageModel } from '../triage/triage-model';
 import { TriageService } from '../triage/triage.service';
@@ -18,6 +19,7 @@ async function main() {
   } catch {
     // rely on the environment
   }
+  trimSecrets();
   process.env.TRIAGE_SWEEP = 'off'; // only the one request we were asked to triage
 
   const [id, flag] = process.argv.slice(2);

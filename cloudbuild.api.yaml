@@ -1,0 +1,66 @@
+# LeaseLens API: build the image, apply pending database migrations, deploy to Cloud Run.
+# Runs on every push to main (trigger "leaselens-api", region us-east5, "github" connection).
+# Secrets come from Secret Manager at runtime; none pass through this build.
+substitutions:
+  _REGION: us-east5
+  _IMAGE: us-east5-docker.pkg.dev/leaselens-511100/leaselens/api
+  _API_SA: leaselens-api@leaselens-511100.iam.gserviceaccount.com
+  _WEB_URL: https://leaselens-web-77205277488.us-east5.run.app
+  _BUCKET: leaselens-511100-uploads
+  # Proxies in front of the API (Google front end + the web app's /api rewrite); measured after the first deploy.
+  _TRUST_PROXY: "0"
+  _LOG_CLIENT_IP_ONCE: "on"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "apps/api/Dockerfile", "-t", "${_IMAGE}:$SHORT_SHA", "-t", "${_IMAGE}:latest", "."]
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "--all-tags", "${_IMAGE}"]
+
+  # prisma migrate deploy only (never reset, never seed), as a Cloud Run job with the database secrets.
+  - id: migrate
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        gcloud run jobs deploy leaselens-migrate --region=${_REGION} --image=${_IMAGE}:$SHORT_SHA \
+          --service-account=${_API_SA} --cpu=1 --memory=512Mi --max-retries=0 --task-timeout=300s \
+          --set-env-vars=NODE_ENV=production \
+          --set-secrets=DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest \
+          --command=node --args=dist/scripts/migrate-deploy.js
+        gcloud run jobs execute leaselens-migrate --region=${_REGION} --wait
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - leaselens-api
+      - --region=${_REGION}
+      - --image=${_IMAGE}:$SHORT_SHA
+      - --service-account=${_API_SA}
+      - --port=8080
+      - --cpu=1
+      - --memory=1Gi
+      - --min-instances=0
+      # One instance: rate limits are kept in memory.
+      - --max-instances=1
+      # CPU stays allocated after a response, so AI triage and auto-dispatch finish in the background.
+      - --no-cpu-throttling
+      - --concurrency=40
+      - --timeout=60s
+      - "--set-env-vars=^|^NODE_ENV=production|DEMO_MODE=off|WEB_URL=${_WEB_URL}|STORAGE_DRIVER=gcs|GCS_BUCKET=${_BUCKET}|SMTP_HOST=smtp.gmail.com|SMTP_PORT=465|SMTP_USER=redietg0105@gmail.com|MAIL_FROM=LeaseLens <redietg0105@gmail.com>|TRUST_PROXY=${_TRUST_PROXY}|LOG_CLIENT_IP_ONCE=${_LOG_CLIENT_IP_ONCE}|LOG_LEVEL=info|TRIAGE_TIMEOUT_MS=25000|AUTO_DISPATCH_LIMIT_USD=250"
+      - --set-secrets=DATABASE_URL=DATABASE_URL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,SMTP_PASSWORD=SMTP_PASSWORD:latest
+
+images:
+  - ${_IMAGE}:$SHORT_SHA
+  - ${_IMAGE}:latest

@@ -1,0 +1,54 @@
+# LeaseLens web app: build the Next.js standalone image and deploy it to Cloud Run.
+# Runs on every push to main (trigger "leaselens-web", region us-east5, "github" connection).
+# The browser only talks to this service; /api/* is forwarded to the API (API_ORIGIN, fixed at build time).
+substitutions:
+  _REGION: us-east5
+  _IMAGE: us-east5-docker.pkg.dev/leaselens-511100/leaselens/web
+  _WEB_SA: leaselens-web@leaselens-511100.iam.gserviceaccount.com
+  _API_ORIGIN: https://leaselens-api-77205277488.us-east5.run.app
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/web/Dockerfile
+      - --build-arg=API_ORIGIN=${_API_ORIGIN}
+      - --build-arg=NEXT_PUBLIC_COMMIT_SHA=$SHORT_SHA
+      - -t
+      - ${_IMAGE}:$SHORT_SHA
+      - -t
+      - ${_IMAGE}:latest
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "--all-tags", "${_IMAGE}"]
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - leaselens-web
+      - --region=${_REGION}
+      - --image=${_IMAGE}:$SHORT_SHA
+      - --service-account=${_WEB_SA}
+      - --port=8080
+      - --cpu=1
+      - --memory=512Mi
+      - --min-instances=0
+      - --max-instances=2
+      - --concurrency=80
+      - --timeout=60s
+      # Server-side calls (session check, page data) go straight to the API service.
+      - --set-env-vars=NODE_ENV=production,API_INTERNAL_URL=${_API_ORIGIN}
+
+images:
+  - ${_IMAGE}:$SHORT_SHA
+  - ${_IMAGE}:latest

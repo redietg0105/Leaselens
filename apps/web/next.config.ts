@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 /** Security headers for every response. The Content-Security-Policy is set per request in src/proxy.ts. */
@@ -17,10 +18,24 @@ const securityHeaders = [
     : []),
 ];
 
+/**
+ * Deployed (Cloud Run): the browser talks only to this site, and /api/* is forwarded to the API service.
+ * Next.js fixes rewrites when it builds, so the Cloud Build step passes the API address as API_ORIGIN.
+ * Locally API_ORIGIN isn't set: no rewrite, and the browser calls http://localhost:4100 directly.
+ */
+const apiOrigin = process.env.API_ORIGIN;
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // A self-contained server (node server.js) for the Docker image; traced from the monorepo root so the
+  // shared workspace package is included.
+  output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "../.."),
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
+  },
+  async rewrites() {
+    return apiOrigin ? [{ source: "/api/:path*", destination: `${apiOrigin}/:path*` }] : [];
   },
 };
 
